@@ -1,6 +1,7 @@
 # Stacks Monitoring
 
 Production-ready monitoring stack for **Stacks Node**, **Stacks Signer**, and **Bitcoin Node** with Grafana dashboards, Prometheus alerts, and log processing pipelines.
+
 ![OSS Stacks Signer Dash](https://github.com/user-attachments/assets/384c3111-7993-44df-b2e3-b8894ec87ad3)
 
 ## Features

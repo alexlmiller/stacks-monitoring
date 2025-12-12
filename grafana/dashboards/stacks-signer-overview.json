@@ -378,7 +378,7 @@
         "overrides": []
       },
       "gridPos": { "h": 2, "w": 3, "x": 15, "y": 1 },
-      "id": 702,
+      "id": 700,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -423,7 +423,7 @@
         "overrides": []
       },
       "gridPos": { "h": 2, "w": 3, "x": 15, "y": 3 },
-      "id": 703,
+      "id": 701,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -543,8 +543,140 @@
       "type": "stat"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Stacks block height over time",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "locale"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Stacks Height" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "gridPos": { "h": 5, "w": 12, "x": 0, "y": 5 },
+      "id": 330,
+      "options": {
+        "legend": { "calcs": ["lastNotNull"], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "editorMode": "code",
+          "expr": "stacks_node_stacks_tip_height{host=\"$host\"}",
+          "legendFormat": "Stacks Height",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Stacks Block Height",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Bitcoin (burn chain) block height over time",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "locale"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Bitcoin Height" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 5 },
+      "id": 5,
+      "options": {
+        "legend": { "calcs": ["lastNotNull"], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "editorMode": "code",
+          "expr": "stacks_node_burn_block_height{host=\"$host\"}",
+          "legendFormat": "Bitcoin Height",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Bitcoin Block Height",
+      "type": "timeseries"
+    },
+    {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 10 },
       "id": 600,
       "panels": [],
       "title": "Stacks Alerts",
@@ -552,7 +684,7 @@
     },
     {
       "description": "Current state of Stacks-related alerts",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 6 },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 11 },
       "id": 601,
       "options": {
         "alertInstanceLabelFilter": "{job=~\"stacks|crypto\"}",
@@ -618,7 +750,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 3, "w": 16, "x": 8, "y": 6 },
+      "gridPos": { "h": 3, "w": 16, "x": 8, "y": 11 },
       "id": 605,
       "options": {
         "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false },
@@ -644,7 +776,7 @@
         "uid": "${DS_LOKI}"
       },
       "description": "Alert history from Grafana alert logs",
-      "gridPos": { "h": 5, "w": 16, "x": 8, "y": 9 },
+      "gridPos": { "h": 5, "w": 16, "x": 8, "y": 14 },
       "id": 602,
       "options": {
         "dedupStrategy": "none",
@@ -671,7 +803,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
       "id": 8,
       "panels": [],
       "title": "Logs",
@@ -726,7 +858,7 @@
           }
         ]
       },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 15 },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 20 },
       "id": 508,
       "options": {
         "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
@@ -815,7 +947,7 @@
           }
         ]
       },
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 15 },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 20 },
       "id": 502,
       "options": {
         "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
@@ -864,7 +996,7 @@
         "type": "loki",
         "uid": "${DS_LOKI}"
       },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 22 },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 27 },
       "id": 503,
       "options": {
         "dedupStrategy": "signature",
@@ -896,7 +1028,7 @@
         "type": "loki",
         "uid": "${DS_LOKI}"
       },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 22 },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 27 },
       "id": 501,
       "options": {
         "dedupStrategy": "signature",

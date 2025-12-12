@@ -1,0 +1,70 @@
+# Stacks Monitoring - Node Agent
+#
+# Deploy on your Stacks node server to collect and forward metrics/logs.
+#
+# Usage:
+#   cp .env.example .env
+#   docker-compose -f docker-compose.node.yml up -d
+
+version: '3.8'
+
+services:
+  alloy:
+    image: grafana/alloy:latest
+    container_name: stacks-alloy-agent
+    restart: unless-stopped
+
+    # Configuration
+    volumes:
+      - ../alloy/examples/node-vm-complete.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy
+      # For journal log collection
+      - /run/systemd/journal:/run/systemd/journal:ro
+      - /var/log/journal:/var/log/journal:ro
+      # For file-based log collection
+      - /var/log:/var/log:ro
+
+    # Environment variables for configuration
+    environment:
+      - HOST_LABEL=${HOST_LABEL:-stacks-node}
+      - METRICS_TARGET_URL=${METRICS_TARGET_URL}
+      - LOGS_TARGET_URL=${LOGS_TARGET_URL}
+      - STACKS_NODE_METRICS=${STACKS_NODE_METRICS:-host.docker.internal:9153}
+      - STACKS_SIGNER_METRICS=${STACKS_SIGNER_METRICS:-host.docker.internal:30001}
+      - BITCOIN_METRICS=${BITCOIN_METRICS:-host.docker.internal:9332}
+
+    # Command
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+
+    # Ports
+    ports:
+      - "${ALLOY_UI_PORT:-12345}:12345"  # Alloy debug UI
+
+    # For Linux: enable host access
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:12345/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  alloy_data:
+    driver: local

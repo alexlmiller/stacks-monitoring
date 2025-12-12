@@ -1,0 +1,201 @@
+// =============================================================================
+// Grafana Alloy Configuration - Monitoring Hub
+// =============================================================================
+// Complete configuration for a monitoring hub that receives and processes
+// logs from remote Alloy agents
+//
+// Features:
+//   - Receives logs from remote agents via Loki API
+//   - Advanced parsing for Stacks log format
+//   - Extracts structured fields (tx_id, block_height, etc.)
+//   - Forwards to storage backend
+//
+// Architecture:
+//   Remote Alloy Agents → Hub (this) → Loki/VictoriaLogs
+//
+// Configuration:
+//   - LOGS_RECEIVER_PORT: Port to receive logs on (default: 3500)
+//   - LOGS_TARGET_URL: Backend storage URL
+// =============================================================================
+
+logging {
+  level = "info"
+}
+
+// =============================================================================
+// LOGS: Reception, Parsing, and Forwarding
+// =============================================================================
+
+// Storage backend
+loki.write "storage" {
+  endpoint {
+    // For Loki:
+    // url = "http://loki:3100/loki/api/v1/push"
+    //
+    // For VictoriaLogs:
+    // url = "http://victorialogs:9428/insert/loki/api/v1/push?_stream_fields=job,host,service,level"
+    url = coalesce(env("LOGS_TARGET_URL"), "http://localhost:9428/insert/loki/api/v1/push?_stream_fields=job,host,service,level")
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Log Processing Pipeline
+// -----------------------------------------------------------------------------
+
+// Clean up remote logs (drop unwanted labels)
+loki.process "clean_remote_logs" {
+  forward_to = [loki.process.parse_stacks.receiver]
+
+  stage.label_drop {
+    values = ["unit", "syslog_identifier", "container_name", "filename"]
+  }
+}
+
+// Parse Stacks logs - extract structured fields
+loki.process "parse_stacks" {
+  forward_to = [loki.write.storage.receiver]
+
+  // Capture original line for fallback
+  stage.regex {
+    expression = `(?P<original_line>.*)`
+  }
+
+  // Parse Rust log format: LEVEL [timestamp] [file:line] [context] message
+  stage.regex {
+    expression = `^(?P<stacks_level>\w+)\s+\[[\d\.]+\]\s+\[(?P<source_file>[^\]]+)\]\s+\[(?P<context>[^\]]+)\]\s+(?P<message>.*)`
+  }
+
+  // Extract component name from context
+  stage.regex {
+    source     = "context"
+    expression = `^(?P<component>[^:(]+)`
+  }
+
+  // Extract block_height
+  stage.regex {
+    source     = "message"
+    expression = `block_height:\s*(?P<block_height>\d+)`
+  }
+
+  // Extract tx_id
+  stage.regex {
+    source     = "message"
+    expression = `tx_id:\s*(?P<tx_id>[a-f0-9]+)`
+  }
+
+  // Extract block_id
+  stage.regex {
+    source     = "message"
+    expression = `block_id:\s*(?P<block_id>[a-f0-9]+)`
+  }
+
+  // Extract peer address
+  stage.regex {
+    source     = "message"
+    expression = `(?:peer_addr|public_addr|public addr):\s*(?P<peer_addr>[\d\.]+)`
+  }
+
+  // Extract signer_signature_hash
+  stage.regex {
+    source     = "message"
+    expression = `signer_signature_hash:\s*(?P<signer_sig_hash>[a-f0-9]+)`
+  }
+
+  // Extract public_key
+  stage.regex {
+    source     = "message"
+    expression = `public key:\s*(?P<public_key>[a-f0-9]+)`
+  }
+
+  // Extract signer_pubkey
+  stage.regex {
+    source     = "message"
+    expression = `signer_pubkey:\s*(?P<signer_pubkey>[a-f0-9]+)`
+  }
+
+  // Extract stackerdb name
+  stage.regex {
+    source     = "message"
+    expression = `(?:SP[A-Z0-9]+)\.(?P<stackerdb_name>signers-\d+-\d+|miners)`
+  }
+
+  // Set labels from extracted values
+  stage.labels {
+    values = {
+      source_file     = "",
+      component       = "",
+      block_height    = "",
+      tx_id           = "",
+      block_id        = "",
+      peer_addr       = "",
+      signer_sig_hash = "",
+      public_key      = "",
+      signer_pubkey   = "",
+      stackerdb_name  = "",
+    }
+  }
+
+  // Override level with extracted stacks_level
+  stage.template {
+    source   = "level_override"
+    template = "{{ if .stacks_level }}{{ .stacks_level }}{{ end }}"
+  }
+
+  stage.labels {
+    values = {
+      level = "level_override",
+    }
+  }
+
+  // Clean output message
+  stage.regex {
+    source     = "message"
+    expression = `^(?:Cycle #\d+ )?(?:Signer #\d+: )?(?P<clean_msg>[^,]+)`
+  }
+
+  stage.regex {
+    source     = "message"
+    expression = `Signer #(?P<signer_num>\d+):`
+  }
+
+  stage.template {
+    source   = "clean_output"
+    template = "{{ if .message }}{{ if .signer_num }}Signer #{{ .signer_num }}: {{ end }}{{ if .clean_msg }}{{ .clean_msg }}{{ else }}{{ .message }}{{ end }}{{ if .stackerdb_name }} ({{ .stackerdb_name }}){{ else if .peer_addr }} (peer: {{ .peer_addr }}){{ else if .tx_id }} [tx]{{ else if .block_id }} [block]{{ else if .public_key }} [peer]{{ else if .signer_sig_hash }} [sig]{{ else if .block_height }} (height: {{ .block_height }}){{ end }}{{ else }}{{ .original_line }}{{ end }}"
+  }
+
+  stage.output {
+    source = "clean_output"
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Logs Receiver - Accept logs from remote agents
+// -----------------------------------------------------------------------------
+loki.source.api "remote_agents" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 3500
+  }
+
+  forward_to = [loki.process.clean_remote_logs.receiver]
+}
+
+// =============================================================================
+// METRICS: Optional - Forward metrics from remote agents
+// =============================================================================
+
+// Uncomment if you want to receive metrics from remote agents
+
+// prometheus.receive_http "remote_agents" {
+//   http {
+//     listen_address = "0.0.0.0"
+//     listen_port    = 9091
+//   }
+//   forward_to = [prometheus.remote_write.storage.receiver]
+// }
+//
+// prometheus.remote_write "storage" {
+//   endpoint {
+//     url = coalesce(env("METRICS_TARGET_URL"), "http://localhost:8428/api/v1/write")
+//   }
+// }

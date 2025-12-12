@@ -1,0 +1,59 @@
+# Example Prometheus scrape configuration for Stacks monitoring
+#
+# Add these to your prometheus.yml under scrape_configs:
+
+scrape_configs:
+  # =========================================================================
+  # Stacks Node Metrics
+  # =========================================================================
+  # Exposes: stacks_node_stacks_tip_height, stacks_node_burn_block_height,
+  #          stacks_node_peer_count, and more
+  - job_name: 'stacks-node'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['your-stacks-node:9153']
+        labels:
+          host: 'stacks-node'
+          service: 'stacks-node'
+          job: 'stacks'
+
+  # =========================================================================
+  # Stacks Signer Metrics
+  # =========================================================================
+  # Exposes: stacks_signer_block_responses_sent, stacks_signer_is_registered,
+  #          stacks_signer_current_reward_cycle, and more
+  - job_name: 'stacks-signer'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['your-stacks-node:30001']
+        labels:
+          host: 'stacks-node'
+          service: 'stacks-signer'
+          job: 'stacks'
+
+  # =========================================================================
+  # Bitcoin Exporter Metrics
+  # =========================================================================
+  # Requires bitcoin-exporter (github.com/jvstein/bitcoin-exporter)
+  # Exposes: bitcoin_blocks, bitcoin_difficulty, bitcoin_peers, etc.
+  - job_name: 'bitcoin-exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['your-stacks-node:9332']
+        labels:
+          host: 'stacks-node'
+          service: 'bitcoin-node'
+          job: 'stacks'
+
+  # =========================================================================
+  # Node Exporter (System Metrics)
+  # =========================================================================
+  # Optional but recommended for the dashboard's system panels
+  - job_name: 'node-exporter'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['your-stacks-node:9100']
+        labels:
+          host: 'stacks-node'
+          service: 'system'
+          job: 'stacks'

@@ -1,0 +1,71 @@
+// =============================================================================
+// Stacks Node Metrics Scraping
+// =============================================================================
+// Scrapes metrics from Stacks Node, Stacks Signer, and Bitcoin Node
+//
+// Configuration:
+//   - STACKS_NODE_METRICS: Stacks node metrics endpoint (default: 127.0.0.1:9153)
+//   - STACKS_SIGNER_METRICS: Signer metrics endpoint (default: 127.0.0.1:30001)
+//   - BITCOIN_METRICS: Bitcoin exporter endpoint (default: 127.0.0.1:9332)
+//   - HOST_LABEL: Host label for all metrics (default: stacks-node)
+//
+// Output: prometheus.relabel.stacks_labels.receiver
+// =============================================================================
+
+// Scrape all Stacks-related metrics endpoints
+prometheus.scrape "stacks_services" {
+  targets = [
+    // Stacks Node - exposes chain height, peer count, etc.
+    {
+      __address__ = coalesce(env("STACKS_NODE_METRICS"), "127.0.0.1:9153"),
+      job         = "stacks",
+      service     = "stacks-node",
+    },
+    // Stacks Signer - exposes signer metrics, block responses, etc.
+    {
+      __address__ = coalesce(env("STACKS_SIGNER_METRICS"), "127.0.0.1:30001"),
+      job         = "stacks",
+      service     = "stacks-signer",
+    },
+    // Bitcoin Node (via bitcoin-exporter) - chain height, difficulty, etc.
+    {
+      __address__ = coalesce(env("BITCOIN_METRICS"), "127.0.0.1:9332"),
+      job         = "stacks",
+      service     = "bitcoin-node",
+    },
+  ]
+
+  forward_to      = [prometheus.relabel.stacks_labels.receiver]
+  scrape_interval = "10s"
+}
+
+// Add standard labels to all scraped metrics
+prometheus.relabel "stacks_labels" {
+  // Connect this to your prometheus.remote_write target
+  forward_to = [prometheus.remote_write.default.receiver]
+
+  // Add host label
+  rule {
+    target_label = "host"
+    replacement  = coalesce(env("HOST_LABEL"), "stacks-node")
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Remote Write Target - CONFIGURE THIS
+// -----------------------------------------------------------------------------
+// Uncomment and configure for your metrics backend:
+
+// For Prometheus:
+// prometheus.remote_write "default" {
+//   endpoint {
+//     url = "http://prometheus:9090/api/v1/write"
+//   }
+// }
+
+// For VictoriaMetrics:
+// prometheus.remote_write "default" {
+//   endpoint {
+//     url = "http://victoriametrics:8428/api/v1/write"
+//   }
+// }

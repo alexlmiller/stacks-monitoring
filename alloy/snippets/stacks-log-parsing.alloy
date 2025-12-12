@@ -1,0 +1,171 @@
+// =============================================================================
+// Stacks Log Parsing Pipeline
+// =============================================================================
+// Advanced parsing for Stacks Node and Signer logs
+// Extracts structured fields from Rust log format
+//
+// Input Format:
+//   LEVEL [timestamp] [file:line] [context] message, key: value, ...
+//
+// Example:
+//   INFO [1765243525.041182] [stackslib/src/net/p2p.rs:2102] [p2p:(20444,20443)]
+//   Dropping neighbor!, event id: 532, public key: c0fe420d...
+//
+// Extracted Labels:
+//   - level: INFO, WARN, ERROR, DEBUG
+//   - source_file: Rust source file and line
+//   - component: Log context name (p2p, signer_runloop, etc.)
+//   - block_height, tx_id, block_id, peer_addr, signer_sig_hash, etc.
+//
+// Input: loki.source.api or direct journal sources
+// Output: loki.write.default.receiver
+// =============================================================================
+
+loki.process "parse_stacks" {
+  // Connect to your loki.write target
+  forward_to = [loki.write.default.receiver]
+
+  // -------------------------------------------------------------------------
+  // Step 1: Capture original line for fallback
+  // -------------------------------------------------------------------------
+  stage.regex {
+    expression = `(?P<original_line>.*)`
+  }
+
+  // -------------------------------------------------------------------------
+  // Step 2: Parse Rust log format
+  // -------------------------------------------------------------------------
+  // Format: LEVEL [timestamp] [file:line] [context] message
+  stage.regex {
+    expression = `^(?P<stacks_level>\w+)\s+\[[\d\.]+\]\s+\[(?P<source_file>[^\]]+)\]\s+\[(?P<context>[^\]]+)\]\s+(?P<message>.*)`
+  }
+
+  // Extract component name from context (remove ports like :20444,20443)
+  stage.regex {
+    source     = "context"
+    expression = `^(?P<component>[^:(]+)`
+  }
+
+  // -------------------------------------------------------------------------
+  // Step 3: Extract key-value fields from message
+  // -------------------------------------------------------------------------
+
+  // Block height
+  stage.regex {
+    source     = "message"
+    expression = `block_height:\s*(?P<block_height>\d+)`
+  }
+
+  // Transaction ID
+  stage.regex {
+    source     = "message"
+    expression = `tx_id:\s*(?P<tx_id>[a-f0-9]+)`
+  }
+
+  // Block ID
+  stage.regex {
+    source     = "message"
+    expression = `block_id:\s*(?P<block_id>[a-f0-9]+)`
+  }
+
+  // Peer/public address
+  stage.regex {
+    source     = "message"
+    expression = `(?:peer_addr|public_addr|public addr):\s*(?P<peer_addr>[\d\.]+)`
+  }
+
+  // Signer signature hash
+  stage.regex {
+    source     = "message"
+    expression = `signer_signature_hash:\s*(?P<signer_sig_hash>[a-f0-9]+)`
+  }
+
+  // Public key (for neighbor drops, etc.)
+  stage.regex {
+    source     = "message"
+    expression = `public key:\s*(?P<public_key>[a-f0-9]+)`
+  }
+
+  // Signer public key
+  stage.regex {
+    source     = "message"
+    expression = `signer_pubkey:\s*(?P<signer_pubkey>[a-f0-9]+)`
+  }
+
+  // StackerDB contract name (signers-0-1, miners, etc.)
+  stage.regex {
+    source     = "message"
+    expression = `(?:SP[A-Z0-9]+)\.(?P<stackerdb_name>signers-\d+-\d+|miners)`
+  }
+
+  // -------------------------------------------------------------------------
+  // Step 4: Set labels from extracted values
+  // -------------------------------------------------------------------------
+  // Empty string means "use extracted field value if it exists"
+  stage.labels {
+    values = {
+      source_file     = "",
+      component       = "",
+      block_height    = "",
+      tx_id           = "",
+      block_id        = "",
+      peer_addr       = "",
+      signer_sig_hash = "",
+      public_key      = "",
+      signer_pubkey   = "",
+      stackerdb_name  = "",
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Step 5: Override level label with extracted stacks_level
+  // -------------------------------------------------------------------------
+  stage.template {
+    source   = "level_override"
+    template = "{{ if .stacks_level }}{{ .stacks_level }}{{ end }}"
+  }
+
+  stage.labels {
+    values = {
+      level = "level_override",
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Step 6: Build clean output message
+  // -------------------------------------------------------------------------
+  // Extract main message text before key-value pairs
+  stage.regex {
+    source     = "message"
+    expression = `^(?:Cycle #\d+ )?(?:Signer #\d+: )?(?P<clean_msg>[^,]+)`
+  }
+
+  // Extract Signer #N for signer messages
+  stage.regex {
+    source     = "message"
+    expression = `Signer #(?P<signer_num>\d+):`
+  }
+
+  // Build clean output with key identifier appended
+  stage.template {
+    source   = "clean_output"
+    template = "{{ if .message }}{{ if .signer_num }}Signer #{{ .signer_num }}: {{ end }}{{ if .clean_msg }}{{ .clean_msg }}{{ else }}{{ .message }}{{ end }}{{ if .stackerdb_name }} ({{ .stackerdb_name }}){{ else if .peer_addr }} (peer: {{ .peer_addr }}){{ else if .tx_id }} [tx]{{ else if .block_id }} [block]{{ else if .public_key }} [peer]{{ else if .signer_sig_hash }} [sig]{{ else if .block_height }} (height: {{ .block_height }}){{ end }}{{ else }}{{ .original_line }}{{ end }}"
+  }
+
+  stage.output {
+    source = "clean_output"
+  }
+}
+
+// =============================================================================
+// Usage: Hub Configuration
+// =============================================================================
+// If running in hub mode (receiving logs from remote agents), use this receiver:
+
+// loki.source.api "remote_agents" {
+//   http {
+//     listen_address = "0.0.0.0"
+//     listen_port    = 3500
+//   }
+//   forward_to = [loki.process.parse_stacks.receiver]
+// }

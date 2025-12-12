@@ -1,0 +1,146 @@
+groups:
+  - name: stacks-signer
+    rules:
+      # =========================================================================
+      # CRITICAL ALERTS
+      # =========================================================================
+
+      - alert: StacksSignerDown
+        expr: up{service="stacks-signer"} == 0
+        for: 3m
+        labels:
+          severity: critical
+          service: stacks-signer
+        annotations:
+          summary: "Stacks Signer is down"
+          description: "Stacks signer metrics endpoint on {{ $labels.host }} has been unreachable for more than 3 minutes. The signer process may have crashed."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#signer-down"
+
+      # =========================================================================
+      # WARNING ALERTS
+      # =========================================================================
+
+      - alert: StacksSignerHighRejection
+        expr: |
+          (
+            sum by (host) (rate(stacks_signer_block_responses_sent{response_type="rejected"}[5m]))
+            /
+            sum by (host) (rate(stacks_signer_block_responses_sent[5m]))
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: stacks-signer
+        annotations:
+          summary: "High block rejection rate on Stacks Signer"
+          description: "Signer on {{ $labels.host }} is rejecting more than 50% of block proposals. Current rejection rate: {{ $value | humanizePercentage }}."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#high-rejection"
+
+      - alert: StacksSignerNotRegistered
+        expr: stacks_signer_is_registered == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: stacks-signer
+        annotations:
+          summary: "Stacks Signer not registered for current cycle"
+          description: "Signer on {{ $labels.host }} is not registered for the current reward cycle. This may indicate a configuration issue or that the signer hasn't been set up for stacking."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#not-registered"
+
+      - alert: StacksSignerStateConflicts
+        expr: increase(stacks_signer_agreement_state_conflicts[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          service: stacks-signer
+        annotations:
+          summary: "Stacks Signer state conflicts detected"
+          description: "Signer on {{ $labels.host }} has detected {{ $value }} state machine conflicts in the last 5 minutes. This may indicate consensus issues."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#state-conflicts"
+
+      - alert: StacksSignerSlowResponse
+        expr: |
+          histogram_quantile(0.95,
+            sum by (host, le) (rate(stacks_signer_block_response_latencies_histogram_bucket[5m]))
+          ) > 60
+        for: 5m
+        labels:
+          severity: warning
+          service: stacks-signer
+        annotations:
+          summary: "Stacks Signer responding slowly to block proposals"
+          description: "95th percentile response latency for signer on {{ $labels.host }} is above 60 seconds ({{ $value | humanizeDuration }}). This may cause missed signing opportunities."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#slow-response"
+
+  - name: stacks-node
+    rules:
+      - alert: StacksNodeLowPeers
+        expr: stacks_node_peer_count < 10
+        for: 10m
+        labels:
+          severity: warning
+          service: stacks-node
+        annotations:
+          summary: "Stacks Node has low peer count"
+          description: "Stacks node on {{ $labels.host }} has only {{ $value }} peers connected. Low peer count may affect block propagation and network participation."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#low-peers"
+
+      - alert: StacksNodeDown
+        expr: up{service="stacks-node"} == 0
+        for: 3m
+        labels:
+          severity: critical
+          service: stacks-node
+        annotations:
+          summary: "Stacks Node is down"
+          description: "Stacks node metrics endpoint on {{ $labels.host }} has been unreachable for more than 3 minutes."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#node-down"
+
+  - name: bitcoin-node
+    rules:
+      - alert: BitcoinBlockStall
+        expr: (time() - stacks_node_burn_block_timestamp) > 1800
+        for: 5m
+        labels:
+          severity: warning
+          service: bitcoin-node
+        annotations:
+          summary: "No new Bitcoin blocks for 30 minutes"
+          description: "No new Bitcoin block has been seen by the node on {{ $labels.host }} for over 30 minutes. This could indicate network issues or Bitcoin network congestion."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#bitcoin-stall"
+
+      - alert: BitcoinNodeDown
+        expr: up{service="bitcoin-node"} == 0
+        for: 3m
+        labels:
+          severity: critical
+          service: bitcoin-node
+        annotations:
+          summary: "Bitcoin Node is down"
+          description: "Bitcoin node metrics endpoint on {{ $labels.host }} has been unreachable for more than 3 minutes."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#bitcoin-down"
+
+  - name: stacks-logs
+    rules:
+      # Log-based alerts (requires recording rules or log metrics)
+      # These require either:
+      # 1. Loki alerting rules (separate config)
+      # 2. log_entries_total metric from Alloy
+      # 3. VictoriaLogs alerting
+
+      - alert: StacksSignerLogSilence
+        # This alert requires a log count metric
+        # If using Alloy with metrics, you can create a recording rule
+        # Otherwise, configure this in Loki/VictoriaLogs alerting
+        expr: |
+          absent_over_time(
+            {service="stacks-signer"}[3m]
+          )
+        for: 0m
+        labels:
+          severity: warning
+          service: stacks-signer
+        annotations:
+          summary: "No Stacks Signer logs for 3 minutes"
+          description: "No logs have been received from stacks-signer on {{ $labels.host }} for 3 minutes. The signer may be down or log collection may be broken."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#log-silence"

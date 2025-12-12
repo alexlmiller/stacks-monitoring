@@ -1,0 +1,206 @@
+// =============================================================================
+// Grafana Alloy Configuration - Stacks Node Agent
+// =============================================================================
+// Complete configuration for running Alloy on your Stacks node server
+//
+// Features:
+//   - Scrapes metrics from Stacks Node, Signer, and Bitcoin
+//   - Collects logs from systemd journal
+//   - Extracts log levels for filtering
+//   - Forwards to your monitoring backend
+//
+// Configuration (via environment variables or edit directly):
+//   - METRICS_TARGET_URL: Prometheus/VictoriaMetrics remote write URL
+//   - LOGS_TARGET_URL: Loki/VictoriaLogs push URL
+//   - HOST_LABEL: Host label (default: stacks-node)
+// =============================================================================
+
+logging {
+  level = "info"
+}
+
+// =============================================================================
+// METRICS: Scraping and Forwarding
+// =============================================================================
+
+// Scrape local metrics endpoints
+prometheus.scrape "stacks_services" {
+  targets = [
+    // Stacks Node metrics (port 9153)
+    {
+      __address__ = "127.0.0.1:9153",
+      job         = "stacks",
+      service     = "stacks-node",
+    },
+    // Stacks Signer metrics (port 30001)
+    {
+      __address__ = "127.0.0.1:30001",
+      job         = "stacks",
+      service     = "stacks-signer",
+    },
+    // Bitcoin exporter metrics (port 9332)
+    {
+      __address__ = "127.0.0.1:9332",
+      job         = "stacks",
+      service     = "bitcoin-node",
+    },
+  ]
+
+  forward_to      = [prometheus.relabel.add_labels.receiver]
+  scrape_interval = "10s"
+}
+
+// Also scrape node_exporter for system metrics (optional)
+prometheus.exporter.unix "system" {
+  include_exporter_metrics = true
+  disable_collectors       = ["mdadm"]
+}
+
+prometheus.scrape "system_metrics" {
+  targets    = prometheus.exporter.unix.system.targets
+  forward_to = [prometheus.relabel.add_labels.receiver]
+}
+
+// Add standard labels
+prometheus.relabel "add_labels" {
+  forward_to = [prometheus.remote_write.backend.receiver]
+
+  // Add host label to all metrics
+  rule {
+    target_label = "host"
+    replacement  = coalesce(env("HOST_LABEL"), "stacks-node")
+  }
+}
+
+// Forward metrics to backend
+// Configure METRICS_TARGET_URL environment variable or edit the URL below
+prometheus.remote_write "backend" {
+  endpoint {
+    url = coalesce(env("METRICS_TARGET_URL"), "http://localhost:9090/api/v1/write")
+
+    queue_config {
+      capacity             = 10000
+      max_shards           = 10
+      max_samples_per_send = 5000
+    }
+  }
+}
+
+// =============================================================================
+// LOGS: Collection and Forwarding
+// =============================================================================
+
+// Loki write target
+// Configure LOGS_TARGET_URL environment variable or edit the URL below
+loki.write "backend" {
+  endpoint {
+    // For Loki:
+    // url = "http://loki:3100/loki/api/v1/push"
+    //
+    // For VictoriaLogs (with stream fields):
+    // url = "http://victorialogs:9428/insert/loki/api/v1/push?_stream_fields=job,host,service,level"
+    url = coalesce(env("LOGS_TARGET_URL"), "http://localhost:3100/loki/api/v1/push")
+  }
+}
+
+// Add host label to all logs
+loki.relabel "add_host" {
+  forward_to = [loki.write.backend.receiver]
+
+  rule {
+    target_label = "host"
+    replacement  = coalesce(env("HOST_LABEL"), "stacks-node")
+  }
+}
+
+// Extract log level from Stacks logs
+loki.process "extract_level" {
+  forward_to = [loki.relabel.add_host.receiver]
+
+  // Extract level from: INFO [timestamp] ...
+  stage.regex {
+    expression = "^(?P<level>INFO|WARN|ERROR|DEBUG|TRACE)"
+  }
+
+  stage.labels {
+    values = {
+      level = "",
+    }
+  }
+}
+
+// Passthrough for non-Stacks logs
+loki.process "passthrough" {
+  forward_to = [loki.relabel.add_host.receiver]
+}
+
+// -----------------------------------------------------------------------------
+// Journal Sources
+// -----------------------------------------------------------------------------
+
+// Stacks Node
+loki.source.journal "stacks_node" {
+  forward_to = [loki.process.extract_level.receiver]
+
+  labels = {
+    job     = "stacks",
+    service = "stacks-node",
+  }
+
+  matches = "_SYSTEMD_UNIT=stacks-node.service"
+  max_age = "12h"
+}
+
+// Stacks Signer
+loki.source.journal "stacks_signer" {
+  forward_to = [loki.process.extract_level.receiver]
+
+  labels = {
+    job     = "stacks",
+    service = "stacks-signer",
+  }
+
+  matches = "_SYSTEMD_UNIT=stacks-signer.service"
+  max_age = "12h"
+}
+
+// Bitcoin Node
+loki.source.journal "bitcoin_node" {
+  forward_to = [loki.process.passthrough.receiver]
+
+  labels = {
+    job     = "stacks",
+    service = "bitcoin-node",
+  }
+
+  matches = "_SYSTEMD_UNIT=bitcoind.service"
+  max_age = "12h"
+}
+
+// -----------------------------------------------------------------------------
+// File Source - Signer file logs with sampling
+// -----------------------------------------------------------------------------
+
+loki.process "signer_sampling" {
+  forward_to = [loki.process.extract_level.receiver]
+
+  // Sample high-volume messages (5%)
+  stage.match {
+    selector = `{service="stacks-signer"} |~ "Received block acceptance"`
+    stage.sampling {
+      rate = 0.05
+    }
+  }
+}
+
+loki.source.file "signer_file" {
+  targets = [
+    {
+      __path__ = "/var/log/stacks-signer/signer.log",
+      job      = "stacks",
+      service  = "stacks-signer",
+    },
+  ]
+
+  forward_to = [loki.process.signer_sampling.receiver]
+}

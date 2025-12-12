@@ -1,0 +1,81 @@
+// =============================================================================
+// Stacks Log Level Extraction
+// =============================================================================
+// Extracts log levels from Stacks logs and normalizes them
+//
+// Stacks log format: LEVEL [timestamp] [file:line] [context] message
+// Example: INFO [1765243525.041182] [stackslib/src/net/p2p.rs:2102] ...
+//
+// Input: Receives logs with raw messages
+// Output: loki.write.default.receiver (with `level` label added)
+// =============================================================================
+
+// Extract level from Stacks log format
+loki.process "extract_level" {
+  // Connect this to your loki.write target
+  forward_to = [loki.write.default.receiver]
+
+  // Extract log level from the start of the message
+  // Matches: INFO, WARN, ERROR, DEBUG, TRACE
+  stage.regex {
+    expression = "^(?P<level>INFO|WARN|ERROR|DEBUG|TRACE)"
+  }
+
+  // Set the level label from extracted value
+  stage.labels {
+    values = {
+      level = "",
+    }
+  }
+}
+
+// =============================================================================
+// Alternative: Level Normalization (for non-Stacks logs)
+// =============================================================================
+// Use this if you need to normalize levels from other formats (journald, etc.)
+
+loki.process "normalize_level" {
+  forward_to = [loki.write.default.receiver]
+
+  // info, informational -> INFO
+  stage.replace {
+    expression = "(?i)^info(rmational)?$"
+    source     = "level"
+    replace    = "INFO"
+  }
+
+  // notice, note -> INFO
+  stage.replace {
+    expression = "(?i)^(notice|note)$"
+    source     = "level"
+    replace    = "INFO"
+  }
+
+  // warn, warning -> WARN
+  stage.replace {
+    expression = "(?i)^warn(ing)?$"
+    source     = "level"
+    replace    = "WARN"
+  }
+
+  // err, error -> ERROR
+  stage.replace {
+    expression = "(?i)^err(or)?$"
+    source     = "level"
+    replace    = "ERROR"
+  }
+
+  // crit, critical, fatal, emerg, emergency, alert -> ERROR
+  stage.replace {
+    expression = "(?i)^(crit|critical|fatal|emerg|emergency|alert)$"
+    source     = "level"
+    replace    = "ERROR"
+  }
+
+  // debug -> DEBUG
+  stage.replace {
+    expression = "(?i)^debug$"
+    source     = "level"
+    replace    = "DEBUG"
+  }
+}

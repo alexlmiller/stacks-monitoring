@@ -1,0 +1,123 @@
+// =============================================================================
+// Stacks Log Collection
+// =============================================================================
+// Collects logs from systemd journal for Stacks Node, Signer, and Bitcoin
+//
+// Configuration:
+//   - HOST_LABEL: Host label for all logs (default: stacks-node)
+//   - SIGNER_LOG_PATH: Path to signer file log (default: /var/log/stacks-signer/signer.log)
+//   - SIGNER_SAMPLING_RATE: Sampling rate for high-volume logs (default: 0.05 = 5%)
+//
+// Output: loki.write.default.receiver
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Journal Sources - Collect from systemd services
+// -----------------------------------------------------------------------------
+
+// Stacks Node logs
+loki.source.journal "stacks_node" {
+  forward_to = [loki.process.add_stacks_labels.receiver]
+
+  labels = {
+    job     = "stacks",
+    service = "stacks-node",
+  }
+
+  // Only collect logs from stacks-node.service
+  matches = "_SYSTEMD_UNIT=stacks-node.service"
+
+  // How far back to read on startup
+  max_age = "12h"
+}
+
+// Stacks Signer logs
+loki.source.journal "stacks_signer" {
+  forward_to = [loki.process.add_stacks_labels.receiver]
+
+  labels = {
+    job     = "stacks",
+    service = "stacks-signer",
+  }
+
+  matches = "_SYSTEMD_UNIT=stacks-signer.service"
+  max_age = "12h"
+}
+
+// Bitcoin node logs
+loki.source.journal "bitcoin_node" {
+  forward_to = [loki.process.add_stacks_labels.receiver]
+
+  labels = {
+    job     = "stacks",
+    service = "bitcoin-node",
+  }
+
+  matches = "_SYSTEMD_UNIT=bitcoind.service"
+  max_age = "12h"
+}
+
+// -----------------------------------------------------------------------------
+// File Source - Stacks Signer file logs (with sampling)
+// -----------------------------------------------------------------------------
+// The signer also writes to a file log which can have high-volume messages.
+// We sample these to reduce storage while preserving important events.
+
+loki.process "signer_sampling" {
+  forward_to = [loki.process.add_stacks_labels.receiver]
+
+  // Sample high-volume "Received block acceptance" messages
+  stage.match {
+    selector = `{service="stacks-signer"} |~ "Received block acceptance"`
+    stage.sampling {
+      // 5% sampling - adjust as needed (0.05 = 5%, 0.1 = 10%, etc.)
+      rate = 0.05
+    }
+  }
+}
+
+loki.source.file "stacks_signer_file" {
+  targets = [
+    {
+      __path__ = coalesce(env("SIGNER_LOG_PATH"), "/var/log/stacks-signer/signer.log"),
+      job      = "stacks",
+      service  = "stacks-signer",
+    },
+  ]
+
+  forward_to = [loki.process.signer_sampling.receiver]
+}
+
+// -----------------------------------------------------------------------------
+// Add Labels - Common processing for all sources
+// -----------------------------------------------------------------------------
+
+loki.process "add_stacks_labels" {
+  forward_to = [loki.process.extract_level.receiver]
+
+  // Add host label
+  stage.static_labels {
+    values = {
+      host = coalesce(env("HOST_LABEL"), "stacks-node"),
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Loki Write Target - CONFIGURE THIS
+// -----------------------------------------------------------------------------
+// Uncomment and configure for your logs backend:
+
+// For Loki:
+// loki.write "default" {
+//   endpoint {
+//     url = "http://loki:3100/loki/api/v1/push"
+//   }
+// }
+
+// For VictoriaLogs:
+// loki.write "default" {
+//   endpoint {
+//     url = "http://victorialogs:9428/insert/loki/api/v1/push?_stream_fields=job,host,service,level"
+//   }
+// }

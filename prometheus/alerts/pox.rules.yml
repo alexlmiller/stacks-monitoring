@@ -1,0 +1,54 @@
+groups:
+  - name: stacks-pox
+    rules:
+      # =========================================================================
+      # POX EXPORTER HEALTH
+      # =========================================================================
+
+      - alert: StacksPoXExporterDown
+        expr: up{service="pox-exporter"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: pox-exporter
+        annotations:
+          summary: "PoX cycle exporter is down"
+          description: "Cannot scrape PoX metrics from {{ $labels.host }} - stacking deadline alerts unavailable."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#pox-exporter-down"
+
+      - alert: StacksPoXApiUnreachable
+        expr: stacks_pox_up == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: pox-exporter
+        annotations:
+          summary: "Cannot reach Stacks node PoX API"
+          description: "The PoX exporter on {{ $labels.host }} cannot reach the Stacks node /v2/pox endpoint."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#pox-api-unreachable"
+
+      # =========================================================================
+      # STACKING DEADLINE REMINDERS
+      # =========================================================================
+
+      - alert: StacksRestackReminder
+        expr: stacks_pox_blocks_until_prepare_phase > 0 and stacks_pox_blocks_until_prepare_phase < 720
+        for: 10m
+        labels:
+          severity: warning
+          service: stacks-signer
+        annotations:
+          summary: "Stacks: {{ $value }} blocks until prepare phase (~{{ $value | humanizeDuration }} at 10min/block)"
+          description: "Approaching stacking cycle deadline. Restack if not already registered for cycle {{ $labels.next_cycle }}."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#restack-reminder"
+
+      - alert: StacksRestackUrgent
+        expr: stacks_pox_blocks_until_prepare_phase > 0 and stacks_pox_blocks_until_prepare_phase < 144
+        for: 10m
+        labels:
+          severity: critical
+          service: stacks-signer
+        annotations:
+          summary: "URGENT: Only {{ $value }} blocks until prepare phase (~1 day)"
+          description: "Stacking cycle deadline imminent. Restack NOW if not already registered for the next cycle."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#restack-urgent"

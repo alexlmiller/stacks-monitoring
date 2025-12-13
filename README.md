@@ -7,7 +7,8 @@ Production-ready monitoring stack for **Stacks Node**, **Stacks Signer**, and **
 ## Features
 
 - **Grafana Dashboard** - Comprehensive view of node health, signer activity, and log analysis
-- **Prometheus Alert Rules** - 8 pre-configured alerts for common issues
+- **PoX Cycle Exporter** - Prometheus metrics for stacking cycle monitoring and restack deadline alerts
+- **Prometheus Alert Rules** - 12 pre-configured alerts including PoX restack reminders
 - **Grafana Alloy Pipelines** - Log collection, parsing, and field extraction for Stacks logs
 - **Multiple Deployment Options** - Docker or systemd
 - **Flexible Backend Support** - Works with Prometheus/VictoriaMetrics and Loki/VictoriaLogs
@@ -66,24 +67,24 @@ systemctl enable --now alloy
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         Your Node Server                            │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
-│  │ Stacks Node  │  │Stacks Signer │  │ Bitcoin Node │              │
-│  │  :20443      │  │   :30000     │  │   :8332      │              │
-│  │  :9153 📊    │  │   :30001 📊  │  │   :9332 📊   │              │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘              │
-│         │                 │                  │                      │
-│         └────────────┬────┴──────────────────┘                      │
-│                      │                                              │
-│              ┌───────▼───────┐                                      │
-│              │  Alloy Agent  │  Collects metrics & logs             │
-│              │    :12345     │  Parses Stacks log format            │
-│              └───────┬───────┘                                      │
-│                      │                                              │
-└──────────────────────┼──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                           Your Node Server                                │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌─────────────┐  │
+│  │ Stacks Node  │  │Stacks Signer │  │ Bitcoin Node │  │PoX Exporter │  │
+│  │  :20443      │  │   :30000     │  │   :8332      │  │   :9816 📊  │  │
+│  │  :9153 📊    │  │   :30001 📊  │  │   :9332 📊   │  └──────┬──────┘  │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘         │         │
+│         │                 │                  │                 │         │
+│         └────────────┬────┴──────────────────┴─────────────────┘         │
+│                      │                                                   │
+│              ┌───────▼───────┐                                           │
+│              │  Alloy Agent  │  Collects metrics & logs                  │
+│              │    :12345     │  Parses Stacks log format                 │
+│              └───────┬───────┘                                           │
+│                      │                                                   │
+└──────────────────────┼───────────────────────────────────────────────────┘
                        │
          ┌─────────────┴─────────────┐
          │                           │
@@ -128,6 +129,10 @@ systemctl enable --now alloy
 | StacksSignerLogSilence | Warning | No signer logs for 3 minutes |
 | StacksNodeLowPeers | Warning | Fewer than 10 peer connections |
 | BitcoinBlockStall | Warning | No new Bitcoin block for 30 minutes |
+| StacksRestackReminder | Warning | <720 blocks (~5 days) until prepare phase |
+| StacksRestackUrgent | Critical | <144 blocks (~1 day) until prepare phase |
+| StacksPoXExporterDown | Warning | PoX exporter unreachable for 5 minutes |
+| StacksPoXApiUnreachable | Warning | Cannot reach Stacks node /v2/pox API |
 
 ### Log Parsing Pipeline
 
@@ -175,6 +180,20 @@ LEVEL [timestamp] [file:line] [context] message, key: value, ...
 | `bitcoin_difficulty` | Current mining difficulty |
 | `bitcoin_peers` | Number of connected peers |
 
+### PoX Exporter Metrics (port 9816)
+
+| Metric | Description |
+|--------|-------------|
+| `stacks_pox_up` | 1 if Stacks node API is reachable |
+| `stacks_pox_blocks_until_prepare_phase` | Blocks until next prepare phase |
+| `stacks_pox_blocks_until_reward_phase` | Blocks until next reward phase |
+| `stacks_pox_current_cycle` | Current PoX cycle number |
+| `stacks_pox_next_cycle` | Next PoX cycle number |
+| `stacks_pox_current_burn_height` | Current Bitcoin block height |
+| `stacks_pox_cycle_length` | PoX cycle length (2100 blocks) |
+
+See [exporters/pox-exporter/README.md](exporters/pox-exporter/README.md) for full metrics documentation.
+
 ## Configuration
 
 ### Environment Variables (Docker)
@@ -186,6 +205,8 @@ LEVEL [timestamp] [file:line] [context] message, key: value, ...
 | `STACKS_NODE_METRICS` | `localhost:9153` | Stacks node metrics endpoint |
 | `STACKS_SIGNER_METRICS` | `localhost:30001` | Stacks signer metrics endpoint |
 | `BITCOIN_METRICS` | `localhost:9332` | Bitcoin exporter endpoint |
+| `POX_EXPORTER_METRICS` | `localhost:9816` | PoX exporter endpoint |
+| `STACKS_NODE_URL` | `http://localhost:20443` | Stacks node RPC (for PoX exporter) |
 | `HOST_LABEL` | `stacks-node` | Host label for metrics/logs |
 
 ### Alloy Configuration

@@ -1,0 +1,48 @@
+// =============================================================================
+// Stacks PoX Exporter Scraping
+// =============================================================================
+// Scrapes PoX cycle metrics from the pox-exporter service
+//
+// Configuration:
+//   - POX_EXPORTER_METRICS: PoX exporter endpoint (default: 127.0.0.1:9816)
+//   - HOST_LABEL: Host label for all metrics (default: stacks-node)
+//
+// Output: prometheus.relabel.pox_labels.receiver
+// =============================================================================
+
+// Scrape PoX cycle metrics
+prometheus.scrape "pox_exporter" {
+  targets = [
+    {
+      __address__ = coalesce(env("POX_EXPORTER_METRICS"), "127.0.0.1:9816"),
+      job         = "stacks",
+      service     = "pox-exporter",
+    },
+  ]
+
+  forward_to      = [prometheus.relabel.pox_labels.receiver]
+  scrape_interval = "60s"  // PoX data changes slowly, once per Bitcoin block
+}
+
+// Add standard labels to PoX metrics
+prometheus.relabel "pox_labels" {
+  // Connect this to your prometheus.remote_write target
+  forward_to = [prometheus.remote_write.default.receiver]
+
+  // Add host label
+  rule {
+    target_label = "host"
+    replacement  = coalesce(env("HOST_LABEL"), "stacks-node")
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Usage Notes
+// -----------------------------------------------------------------------------
+// To use this snippet:
+// 1. Include it in your main Alloy config
+// 2. Set POX_EXPORTER_METRICS to point to your pox-exporter instance
+// 3. Configure prometheus.remote_write "default" to your metrics backend
+//
+// Alternative: Merge with stacks-node-scrape.alloy by adding the pox-exporter
+// target to the existing prometheus.scrape "stacks_services" block

@@ -1,0 +1,19 @@
+[Unit]
+Description=Stacks PoX Cycle Exporter
+Documentation=https://github.com/your-org/stacks-monitoring
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/pox-exporter/pox-exporter.py
+Restart=always
+RestartSec=5
+EnvironmentFile=-/etc/default/pox-exporter
+User=nobody
+Group=nogroup
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

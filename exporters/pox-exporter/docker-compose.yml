@@ -1,0 +1,17 @@
+services:
+  pox-exporter:
+    build: .
+    container_name: pox-exporter
+    ports:
+      - "${POX_EXPORTER_PORT:-9816}:9816"
+    environment:
+      - STACKS_NODE_URL=${STACKS_NODE_URL:-http://host.docker.internal:20443}
+      - POX_EXPORTER_PORT=9816
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9816/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

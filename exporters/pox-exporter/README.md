@@ -52,8 +52,34 @@ python3 pox-exporter.py
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
-| `STACKS_NODE_URL` | `http://localhost:20443` | Stacks node RPC endpoint |
+| `STACKS_NODE_URL` | `http://localhost:20443` | Stacks node RPC endpoint (for `/v2/pox`) |
 | `POX_EXPORTER_PORT` | `9816` | Port to expose metrics on |
+| `STACKER_ADDRESSES` | (empty) | Comma-separated STX addresses to monitor for registration |
+| `STACKER_API_URL` | `https://api.hiro.so` | API for registration checking (only used when STACKER_ADDRESSES is set) |
+
+### Registration Checking
+
+When `STACKER_ADDRESSES` is configured, the exporter checks if any of the specified addresses are registered for the next stacking cycle. This enables smarter alerting - restack alerts will only fire if you're not already registered.
+
+```bash
+# Basic setup - PoX info from local node only
+export STACKS_NODE_URL=http://localhost:20443
+
+# Enable registration checking (uses Hiro API by default)
+export STACKER_ADDRESSES=SP1ABC...,SP2DEF...
+
+# Or use your own stacks-blockchain-api instance
+export STACKER_API_URL=http://localhost:3999
+```
+
+**Note:** Registration checking requires the extended API endpoints (`/extended/v1/address/...`) which are NOT available on the core Stacks node. You need either:
+- The public Hiro API (default)
+- Your own [stacks-blockchain-api](https://github.com/hirosystems/stacks-blockchain-api) instance
+
+The `stacks_pox_registered_next_cycle` metric will return:
+- `1` - At least one address is registered for the next cycle
+- `0` - No addresses are registered (alert should fire)
+- `-1` - No addresses configured (feature disabled)
 
 ## Metrics
 
@@ -71,6 +97,7 @@ python3 pox-exporter.py
 | `stacks_pox_prepare_length` | Gauge | Prepare phase length in blocks (100) |
 | `stacks_pox_reward_length` | Gauge | Reward phase length in blocks (2000) |
 | `stacks_pox_info` | Gauge | Metadata labels for filtering |
+| `stacks_pox_registered_next_cycle` | Gauge | 1 if registered, 0 if not, -1 if not configured |
 
 ## Endpoints
 
@@ -108,8 +135,11 @@ See [prometheus/alerts/pox.rules.yml](../../prometheus/alerts/pox.rules.yml) for
 |-------|----------|---------|
 | `StacksPoXExporterDown` | Warning | Exporter unreachable for 5m |
 | `StacksPoXApiUnreachable` | Warning | Cannot reach Stacks node API |
-| `StacksRestackReminder` | Warning | <720 blocks (~5 days) until prepare phase |
-| `StacksRestackUrgent` | Critical | <144 blocks (~1 day) until prepare phase |
+| `StacksRestackReminder` | Warning | <720 blocks AND not registered for next cycle |
+| `StacksRestackUrgent` | Critical | <144 blocks AND not registered for next cycle |
+| `StacksRestackReminderNoCheck` | Info | <720 blocks (when registration check disabled) |
+
+When `STACKER_ADDRESSES` is configured, the restack alerts will automatically stop firing once you're registered for the next cycle.
 
 ## PoX Cycle Timing
 

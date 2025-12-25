@@ -114,6 +114,40 @@ Exposed on port `9332` by default (bitcoin_exporter).
 | `bitcoin_verification_progress` | Gauge | IBD progress (0-1) |
 | `bitcoin_size_on_disk` | Gauge | Blockchain size in bytes |
 
+## PoX Exporter Metrics
+
+Exposed on port `9816` by default.
+
+### Cycle Information
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `stacks_pox_up` | Gauge | 1 if API reachable, 0 otherwise |
+| `stacks_pox_current_cycle` | Gauge | Current PoX cycle number |
+| `stacks_pox_next_cycle` | Gauge | Next PoX cycle number |
+| `stacks_pox_current_burn_height` | Gauge | Current Bitcoin block height |
+| `stacks_pox_blocks_until_prepare_phase` | Gauge | Blocks until prepare phase starts |
+| `stacks_pox_blocks_until_reward_phase` | Gauge | Blocks until reward phase starts |
+| `stacks_pox_next_prepare_start_block` | Gauge | Block where next prepare phase starts |
+| `stacks_pox_next_reward_start_block` | Gauge | Block where next reward phase starts |
+
+### Cycle Parameters
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `stacks_pox_cycle_length` | Gauge | Total cycle length (2100 blocks) |
+| `stacks_pox_prepare_length` | Gauge | Prepare phase length (100 blocks) |
+| `stacks_pox_reward_length` | Gauge | Reward phase length (2000 blocks) |
+
+### Registration Status
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `stacks_pox_registered_next_cycle` | Gauge | 1=registered, 0=not registered, -1=not configured |
+| `stacks_pox_info` | Gauge | Metadata labels (current_cycle, next_cycle, burn_height) |
+
+The `stacks_pox_registered_next_cycle` metric requires `STACKER_ADDRESSES` to be configured. It checks if any of the specified addresses have STX locked beyond the next cycle's start block.
+
 ## Alloy Self-Metrics
 
 Exposed on port `12345` at `/metrics`.

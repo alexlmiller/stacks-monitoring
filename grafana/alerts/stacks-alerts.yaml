@@ -1,0 +1,644 @@
+# Grafana Alerting Provisioning - Stacks Monitoring Alerts
+#
+# This file can be used with Grafana's provisioning system to set up alerts.
+# Place this in your Grafana provisioning/alerting directory.
+#
+# IMPORTANT: Before using, replace PROMETHEUS_DATASOURCE_UID with your actual
+# Prometheus/VictoriaMetrics datasource UID. You can find this in Grafana under
+# Configuration > Data Sources > your datasource > the UID in the URL or JSON.
+#
+# Alerts are organized into:
+# - LOCAL ISSUES: Problems with your node/signer that you can fix
+# - NETWORK ISSUES: Problems with the Stacks network (wait for recovery)
+# - BITCOIN: Bitcoin node health
+# - POX: Stacking cycle monitoring
+
+apiVersion: 1
+
+groups:
+  # ==========================================================================
+  # LOCAL ISSUES - Problems with YOUR infrastructure
+  # ==========================================================================
+  - orgId: 1
+    name: stacks-local
+    folder: Stacks Alerts
+    interval: 1m
+    rules:
+      # Stacks Signer Down
+      - uid: stacks-signer-down
+        title: "Stacks Signer Down"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'up{service="stacks-signer"}'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$B < 1"
+              refId: C
+              type: math
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 3m
+        annotations:
+          summary: "Signer DOWN - metrics unreachable"
+          description: "Stacks signer metrics endpoint unreachable for 3+ minutes. Check if stacks-signer service is running."
+        labels:
+          alertname: stacks-signer-down
+          service: stacks-signer
+          severity: critical
+          issue_type: local
+
+      # Stacks Signer Slow Response
+      - uid: stacks-signer-slow-response
+        title: "Stacks Signer Slow Response"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'histogram_quantile(0.95, rate(stacks_signer_block_response_latencies_histogram_bucket[5m]))'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$B > 60"
+              refId: C
+              type: math
+        noDataState: OK
+        execErrState: Alerting
+        for: 15m
+        annotations:
+          summary: "Signer slow response"
+          description: "Signer p95 response latency is above 60 seconds. Slow responses may cause blocks to fail quorum."
+        labels:
+          alertname: stacks-signer-slow-response
+          service: stacks-signer
+          severity: warning
+          issue_type: local
+
+      # Stacks Node Down
+      - uid: stacks-node-down
+        title: "Stacks Node Down"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'up{service="stacks-node"}'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$B < 1"
+              refId: C
+              type: math
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 3m
+        annotations:
+          summary: "Stacks Node DOWN"
+          description: "Stacks node metrics endpoint unreachable for 3+ minutes."
+        labels:
+          alertname: stacks-node-down
+          service: stacks-node
+          severity: critical
+          issue_type: local
+
+      # Stacks Node Low Peers
+      - uid: stacks-node-low-peers
+        title: "Stacks Node Low Peer Count"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'stacks_node_peer_count'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$B < 10"
+              refId: C
+              type: math
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: "Node low peers"
+          description: "Stacks node has low outbound peer connections. Low peer count may affect block propagation."
+        labels:
+          alertname: stacks-node-low-peers
+          service: stacks-node
+          severity: warning
+          issue_type: local
+
+  # ==========================================================================
+  # NETWORK ISSUES - Problems with the Stacks network
+  # ==========================================================================
+  - orgId: 1
+    name: stacks-network
+    folder: Stacks Alerts
+    interval: 1m
+    rules:
+      # Block Production Degraded (Early Warning)
+      - uid: stacks-block-production-degraded
+        title: "Stacks Block Production Degraded (Early Warning)"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'increase(stacks_node_stacks_tip_height[5m])'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$B < 20 && $B > 5"
+              refId: C
+              type: math
+        noDataState: OK
+        execErrState: OK
+        for: 3m
+        annotations:
+          summary: "Early warning: block production degraded"
+          description: "Block production at 50% of normal. This is an EARLY WARNING of potential network issues."
+        labels:
+          alertname: stacks-block-production-degraded
+          service: stacks-node
+          severity: warning
+          issue_type: network
+
+      # Block Production Issues
+      - uid: stacks-block-production-issues
+        title: "Stacks Block Production Issues"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'increase(stacks_node_stacks_tip_height[5m])'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$B < 5"
+              refId: C
+              type: math
+        noDataState: OK
+        execErrState: OK
+        for: 5m
+        annotations:
+          summary: "Block production severely degraded"
+          description: "Less than 5 blocks produced in last 5 minutes (normal: 25-35). Check Stacks Discord for network status."
+        labels:
+          alertname: stacks-block-production-issues
+          service: stacks-node
+          severity: warning
+          issue_type: network
+
+      # Block Production Stall
+      - uid: stacks-block-stall
+        title: "Stacks Block Production Stall"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'deriv(stacks_node_stacks_tip_height[10m])'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$B < 0.001 && $B > -0.001"
+              refId: C
+              type: math
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: "Block production stalled"
+          description: "No new Stacks blocks produced in 5+ minutes. Network-wide consensus stall. Check Stacks Discord."
+        labels:
+          alertname: stacks-block-stall
+          service: stacks-node
+          severity: warning
+          issue_type: network
+
+      # Signer High Rejection Count
+      - uid: stacks-signer-high-rejections
+        title: "Stacks Signer High Rejection Count"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'increase(stacks_signer_block_responses_sent{response_type="rejected"}[10m])'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$B > 50"
+              refId: C
+              type: math
+        noDataState: OK
+        execErrState: OK
+        for: 5m
+        annotations:
+          summary: "High block rejection count"
+          description: "Signer rejected many blocks in 10 minutes (normal: ~6). Indicates consensus issues or network stall."
+        labels:
+          alertname: stacks-signer-high-rejections
+          service: stacks-signer
+          severity: warning
+          issue_type: network
+
+      # Signer High Rejection Rate
+      - uid: stacks-signer-high-rejection-rate
+        title: "Stacks Signer High Rejection Rate"
+        condition: D
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'increase(stacks_signer_block_responses_sent{response_type="rejected"}[5m])'
+              instant: true
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'increase(stacks_signer_block_responses_sent{response_type="accepted"}[5m])'
+              instant: true
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$A / ($A + $B + 0.001)"
+              refId: C
+              type: math
+          - refId: D
+            datasourceUid: __expr__
+            model:
+              expression: "$C > 0.5 && ($A + $B) > 1"
+              refId: D
+              type: math
+        noDataState: OK
+        execErrState: OK
+        for: 3m
+        annotations:
+          summary: "High rejection rate"
+          description: "Signer rejection rate above 50%. May indicate stale state or consensus issues."
+        labels:
+          alertname: stacks-signer-high-rejection-rate
+          service: stacks-signer
+          severity: critical
+          issue_type: network
+
+      # Signer High Proposal Rate
+      - uid: stacks-signer-high-proposals
+        title: "Stacks Signer High Proposal Rate"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'rate(stacks_signer_block_proposals_received[5m])'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$B > 0.8"
+              refId: C
+              type: math
+        noDataState: OK
+        execErrState: OK
+        for: 10m
+        annotations:
+          summary: "High proposal rate"
+          description: "Receiving many block proposals/sec (normal: ~0.23/s). Indicates miner competition or network congestion."
+        labels:
+          alertname: stacks-signer-high-proposals
+          service: stacks-signer
+          severity: info
+          issue_type: network
+
+      # Signer State Conflicts
+      - uid: stacks-signer-state-conflicts
+        title: "Stacks Signer State Conflicts"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'increase(stacks_signer_agreement_state_conflicts[10m])'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              reducer: sum
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$B > 5"
+              refId: C
+              type: math
+        noDataState: OK
+        execErrState: Alerting
+        for: 15m
+        annotations:
+          summary: "State conflicts detected"
+          description: "Signer has multiple state conflicts in last 10 minutes. May indicate sync issues with the network."
+        labels:
+          alertname: stacks-signer-state-conflicts
+          service: stacks-signer
+          severity: warning
+          issue_type: network
+
+  # ==========================================================================
+  # BITCOIN - Bitcoin node health (Stacks depends on Bitcoin)
+  # ==========================================================================
+  - orgId: 1
+    name: bitcoin
+    folder: Stacks Alerts
+    interval: 1m
+    rules:
+      # Bitcoin Node Down
+      - uid: bitcoin-node-down
+        title: "Bitcoin Node Down"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'up{service="bitcoin-node"}'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$B < 1"
+              refId: C
+              type: math
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 3m
+        annotations:
+          summary: "Bitcoin Node DOWN"
+          description: "Bitcoin node metrics endpoint unreachable for 3+ minutes."
+        labels:
+          alertname: bitcoin-node-down
+          service: bitcoin-node
+          severity: critical
+          issue_type: local
+
+      # Bitcoin Low Peers
+      - uid: bitcoin-low-peers
+        title: "Bitcoin Low Peer Count"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'bitcoin_conn_in + bitcoin_conn_out'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$B < 4"
+              refId: C
+              type: math
+        noDataState: OK
+        execErrState: OK
+        for: 15m
+        annotations:
+          summary: "Bitcoin low peers"
+          description: "Bitcoin node has fewer than 4 peer connections. May cause slow block propagation."
+        labels:
+          alertname: bitcoin-low-peers
+          service: bitcoin-node
+          severity: warning
+          issue_type: local
+
+  # ==========================================================================
+  # POX - Stacking cycle monitoring
+  # ==========================================================================
+  - orgId: 1
+    name: stacks-pox
+    folder: Stacks Alerts
+    interval: 1m
+    rules:
+      # PoX Exporter Down
+      - uid: stacks-pox-exporter-down
+        title: "PoX Exporter Down"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'up{service="pox-exporter"}'
+              instant: true
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$B < 1"
+              refId: C
+              type: math
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: "PoX Exporter DOWN"
+          description: "Cannot scrape PoX metrics - stacking deadline alerts unavailable."
+        labels:
+          alertname: stacks-pox-exporter-down
+          service: pox-exporter
+          severity: warning
+          issue_type: local
+
+      # Restack Reminder (not registered)
+      - uid: stacks-restack-reminder
+        title: "Stacks: Restack Reminder"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'stacks_pox_blocks_until_prepare_phase'
+              instant: true
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PROMETHEUS_DATASOURCE_UID
+            model:
+              expr: 'stacks_pox_registered_next_cycle'
+              instant: true
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              expression: "$A > 0 && $A < 720 && $B == 0"
+              refId: C
+              type: math
+        noDataState: OK
+        execErrState: OK
+        for: 5m
+        annotations:
+          summary: "~5 days until prepare phase - not registered"
+          description: "Approaching stacking deadline and you are NOT registered for the next cycle. Restack soon."
+        labels:
+          alertname: stacks-restack-reminder
+          service: stacks-signer
+          severity: warning
+          issue_type: local

@@ -96,6 +96,94 @@ groups:
           description: "Stacks node metrics endpoint on {{ $labels.host }} has been unreachable for more than 3 minutes."
           runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#node-down"
 
+  # ===========================================================================
+  # NETWORK ALERTS - Issues with the Stacks network (wait for recovery)
+  # ===========================================================================
+  - name: stacks-network
+    rules:
+      # -------------------------------------------------------------------------
+      # Block Production Monitoring - Early warning system for network stalls
+      # -------------------------------------------------------------------------
+
+      - alert: StacksBlockProductionDegraded
+        # Early warning: fires 10-15 minutes before full stall
+        # Normal production: 25-35 blocks per 5 minutes
+        # This catches 50% degradation (5-20 blocks/5min)
+        expr: |
+          increase(stacks_node_stacks_tip_height[5m]) < 20
+          and
+          increase(stacks_node_stacks_tip_height[5m]) > 5
+        for: 3m
+        labels:
+          severity: warning
+          service: stacks-node
+          issue_type: network
+        annotations:
+          summary: "Early warning: block production at 50% of normal"
+          description: "Block production at {{ $value | printf \"%.0f\" }} blocks/5min (normal: 25-35). This is an EARLY WARNING of potential network issues. Check https://explorer.hiro.so for network-wide status."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#block-production"
+
+      - alert: StacksBlockProductionIssues
+        # More severe: less than 5 blocks in 5 minutes
+        expr: increase(stacks_node_stacks_tip_height[5m]) < 5
+        for: 5m
+        labels:
+          severity: warning
+          service: stacks-node
+          issue_type: network
+        annotations:
+          summary: "Block production severely degraded"
+          description: "Only {{ $value | printf \"%.0f\" }} blocks produced in last 5 minutes (normal: 25-35). Block production is degraded but not halted. Check Stacks Discord for network status."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#block-production"
+
+      - alert: StacksBlockStall
+        # Complete stall: derivative approaches zero
+        expr: |
+          deriv(stacks_node_stacks_tip_height[10m]) < 0.001
+          and
+          deriv(stacks_node_stacks_tip_height[10m]) > -0.001
+        for: 5m
+        labels:
+          severity: warning
+          service: stacks-node
+          issue_type: network
+        annotations:
+          summary: "Block production stalled - no new blocks"
+          description: "No new Stacks blocks produced in 5+ minutes (rate={{ $value | printf \"%.4f\" }} blocks/sec). This may indicate a network-wide consensus stall. Check Stacks Discord/Twitter for network status."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#block-stall"
+
+      # -------------------------------------------------------------------------
+      # Signer Network Indicators
+      # -------------------------------------------------------------------------
+
+      - alert: StacksSignerHighRejectionCount
+        # Absolute count of rejections (complements rate-based alert)
+        # Normal baseline: ~6 rejections per 10 minutes
+        expr: increase(stacks_signer_block_responses_sent{response_type="rejected"}[10m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          service: stacks-signer
+          issue_type: network
+        annotations:
+          summary: "High block rejection count"
+          description: "Signer rejected {{ $value | printf \"%.0f\" }} blocks in 10 minutes (normal: ~6). High rejection count indicates consensus issues or network stall. Check Stacks Discord for network status."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#high-rejection"
+
+      - alert: StacksSignerHighProposalRate
+        # High proposal rate indicates miner competition or network congestion
+        # Normal baseline: ~0.23 proposals per second
+        expr: rate(stacks_signer_block_proposals_received[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: info
+          service: stacks-signer
+          issue_type: network
+        annotations:
+          summary: "High block proposal rate"
+          description: "Receiving {{ $value | printf \"%.2f\" }} block proposals/sec (normal: ~0.23/s). High proposal rate indicates miner competition or network congestion."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#high-proposals"
+
   - name: bitcoin-node
     rules:
       - alert: BitcoinBlockStall
@@ -119,6 +207,19 @@ groups:
           summary: "Bitcoin Node is down"
           description: "Bitcoin node metrics endpoint on {{ $labels.host }} has been unreachable for more than 3 minutes."
           runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#bitcoin-down"
+
+      - alert: BitcoinLowPeers
+        # Stacks depends on Bitcoin for anchor blocks
+        # Low peer count may cause slow block propagation
+        expr: (bitcoin_conn_in + bitcoin_conn_out) < 4
+        for: 15m
+        labels:
+          severity: warning
+          service: bitcoin-node
+        annotations:
+          summary: "Bitcoin node has low peer count"
+          description: "Bitcoin node has only {{ $value | printf \"%.0f\" }} peer connections (threshold: 4). Low peer count may cause slow block propagation. Check network connectivity and firewall rules."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#bitcoin-low-peers"
 
   - name: stacks-logs
     rules:

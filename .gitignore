@@ -30,3 +30,7 @@ Thumbs.db
 
 # Alloy data
 data/
+
+# Claude Code context
+CLAUDE.md
+.claude/

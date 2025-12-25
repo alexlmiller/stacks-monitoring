@@ -29,26 +29,58 @@ groups:
 
       # =========================================================================
       # STACKING DEADLINE REMINDERS
+      # These alerts incorporate registration status when STACKER_ADDRESSES is
+      # configured in the PoX exporter. If not configured, they fall back to
+      # time-based warnings only.
       # =========================================================================
 
       - alert: StacksRestackReminder
-        expr: stacks_pox_blocks_until_prepare_phase > 0 and stacks_pox_blocks_until_prepare_phase < 720
-        for: 10m
+        # Fires when approaching deadline AND not registered for next cycle
+        # If registration checking is disabled (-1), only the time-based alert fires
+        expr: |
+          stacks_pox_blocks_until_prepare_phase > 0
+          and stacks_pox_blocks_until_prepare_phase < 720
+          and stacks_pox_registered_next_cycle == 0
+        for: 5m
         labels:
           severity: warning
           service: stacks-signer
         annotations:
-          summary: "Stacks: {{ $value }} blocks until prepare phase (~{{ $value | humanizeDuration }} at 10min/block)"
-          description: "Approaching stacking cycle deadline. Restack if not already registered for cycle {{ $labels.next_cycle }}."
+          summary: "Stacks: ~5 days until prepare phase - not registered"
+          description: "{{ $value | printf \"%.0f\" }} blocks until prepare phase and you are NOT registered for the next cycle. Restack soon to avoid missing rewards."
           runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#restack-reminder"
 
       - alert: StacksRestackUrgent
-        expr: stacks_pox_blocks_until_prepare_phase > 0 and stacks_pox_blocks_until_prepare_phase < 144
-        for: 10m
+        # Fires when deadline imminent AND not registered for next cycle
+        expr: |
+          stacks_pox_blocks_until_prepare_phase > 0
+          and stacks_pox_blocks_until_prepare_phase < 144
+          and stacks_pox_registered_next_cycle == 0
+        for: 5m
         labels:
           severity: critical
           service: stacks-signer
         annotations:
-          summary: "URGENT: Only {{ $value }} blocks until prepare phase (~1 day)"
-          description: "Stacking cycle deadline imminent. Restack NOW if not already registered for the next cycle."
+          summary: "URGENT: ~1 day until prepare phase - not registered"
+          description: "Only {{ $value | printf \"%.0f\" }} blocks until prepare phase and you are NOT registered for the next cycle. Restack NOW to avoid missing rewards."
           runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#restack-urgent"
+
+      # =========================================================================
+      # FALLBACK ALERTS (when registration checking is disabled)
+      # These fire if STACKER_ADDRESSES is not configured
+      # =========================================================================
+
+      - alert: StacksRestackReminderNoCheck
+        # Fallback: fires when registration checking is disabled
+        expr: |
+          stacks_pox_blocks_until_prepare_phase > 0
+          and stacks_pox_blocks_until_prepare_phase < 720
+          and stacks_pox_registered_next_cycle == -1
+        for: 10m
+        labels:
+          severity: info
+          service: stacks-signer
+        annotations:
+          summary: "Stacks: ~5 days until prepare phase (registration check disabled)"
+          description: "{{ $value | printf \"%.0f\" }} blocks until prepare phase. Configure STACKER_ADDRESSES in the PoX exporter to enable automatic registration checking."
+          runbook_url: "https://github.com/alexlmiller/stacks-monitoring/blob/main/docs/TROUBLESHOOTING.md#restack-reminder"

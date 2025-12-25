@@ -27,6 +27,16 @@ loki.process "extract_level" {
       level = "",
     }
   }
+
+  // Sample high-volume StackerDB messages (15% by default)
+  // These messages can be ~64% of all node logs and provide limited diagnostic value
+  // Set STACKERDB_SAMPLING_RATE env var to adjust (0.0-1.0)
+  stage.match {
+    selector = `{service="stacks-node"} |~ "StackerDBChunk"`
+    stage.sampling {
+      rate = coalesce(env("STACKERDB_SAMPLING_RATE"), 0.15)
+    }
+  }
 }
 
 // =============================================================================

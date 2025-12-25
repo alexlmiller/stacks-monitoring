@@ -853,7 +853,11 @@
             "properties": [{ "id": "color", "value": { "fixedColor": "gray", "mode": "fixed" } }]
           },
           {
-            "matcher": { "id": "byName", "options": "Warnings" },
+            "matcher": { "id": "byName", "options": "Network Errors" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Chain Errors" },
             "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
           }
         ]
@@ -893,10 +897,18 @@
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
           "editorMode": "code",
-          "expr": "sum(count_over_time({service=\"stacks-node\", host=\"$host\", level=\"WARN\"} [$__interval]))",
-          "legendFormat": "Warnings",
+          "expr": "sum(count_over_time({service=\"stacks-node\", host=\"$host\", level=\"WARN\"} |~ \"peer|connection|socket|timeout|network|Outbox\" [$__interval]))",
+          "legendFormat": "Network Errors",
           "queryType": "range",
-          "refId": "Warnings"
+          "refId": "NetworkErrors"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({service=\"stacks-node\", host=\"$host\", level=\"WARN\"} |~ \"state|sortition|consensus|tenure|miner\" !~ \"peer|connection|socket|timeout|network|Outbox\" [$__interval]))",
+          "legendFormat": "Chain Errors",
+          "queryType": "range",
+          "refId": "ChainErrors"
         }
       ],
       "title": "Node Log Volume",
@@ -942,8 +954,16 @@
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Rejected/Invalid" },
+            "matcher": { "id": "byName", "options": "Timeouts" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Invalid" },
             "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Other WARNs" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }]
           }
         ]
       },
@@ -982,10 +1002,26 @@
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
           "editorMode": "code",
-          "expr": "sum(count_over_time({service=\"stacks-signer\", host=\"$host\", level=\"WARN\"} [$__interval]))",
-          "legendFormat": "Rejected/Invalid",
+          "expr": "sum(count_over_time({service=\"stacks-signer\", host=\"$host\", level=\"WARN\"} |~ \"timed out\" [$__interval]))",
+          "legendFormat": "Timeouts",
           "queryType": "range",
-          "refId": "Rejected"
+          "refId": "Timeouts"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({service=\"stacks-signer\", host=\"$host\", level=\"WARN\"} |~ \"mismatch|invalid|rejected\" [$__interval]))",
+          "legendFormat": "Invalid",
+          "queryType": "range",
+          "refId": "Invalid"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({service=\"stacks-signer\", host=\"$host\", level=\"WARN\"} !~ \"timed out|mismatch|invalid|rejected\" [$__interval]))",
+          "legendFormat": "Other WARNs",
+          "queryType": "range",
+          "refId": "OtherWarns"
         }
       ],
       "title": "Signer Log Volume",

@@ -1,0 +1,195 @@
+# Grafana Alerting Provisioning - VictoriaLogs log-based Stacks alerts
+#
+# Copy this file into Grafana provisioning/alerting if you use VictoriaLogs.
+# Before enabling it, replace VICTORIALOGS_DATASOURCE_UID with your Grafana
+# VictoriaLogs datasource UID.
+#
+# These alerts intentionally live outside the Prometheus rule files because
+# they query logs, not metrics.
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: stacks-log-silence
+    folder: Stacks Alerts
+    interval: 1m
+    rules:
+      # Silence windows differ by expected log volume: Stacks node is chatty,
+      # signer activity can be bursty, and Bitcoin logs can be quiet between blocks.
+      - uid: stacks-node-log-silence
+        title: "Stacks Node Log Silence"
+        condition: B
+        data:
+          - refId: A
+            queryType: stats
+            relativeTimeRange:
+              from: 180
+              to: 0
+            datasourceUid: VICTORIALOGS_DATASOURCE_UID
+            model:
+              datasource:
+                type: victoriametrics-logs-datasource
+                uid: VICTORIALOGS_DATASOURCE_UID
+              editorMode: code
+              expr: '{service="stacks-node"} | stats count() as log_count'
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: stats
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: "$A < 1"
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: B
+              type: math
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 3m
+        annotations:
+          summary: "Stacks node logs stopped"
+          description: "No logs received from stacks-node for 3+ minutes. Check the node service, local Alloy agent, log receiver, and VictoriaLogs."
+        labels:
+          alertname: stacks-node-log-silence
+          service: stacks-node
+          severity: warning
+          issue_type: local
+
+      - uid: stacks-signer-log-silence
+        title: "Stacks Signer Log Silence"
+        condition: B
+        data:
+          - refId: A
+            queryType: stats
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: VICTORIALOGS_DATASOURCE_UID
+            model:
+              datasource:
+                type: victoriametrics-logs-datasource
+                uid: VICTORIALOGS_DATASOURCE_UID
+              editorMode: code
+              expr: '{service="stacks-signer"} | stats count() as log_count'
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: stats
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: "$A < 1"
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: B
+              type: math
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: "Stacks signer logs stopped"
+          description: "No logs received from stacks-signer for 5+ minutes. Check the signer service, local Alloy agent, log receiver, and VictoriaLogs."
+        labels:
+          alertname: stacks-signer-log-silence
+          service: stacks-signer
+          severity: warning
+          issue_type: local
+
+      - uid: bitcoin-node-log-silence
+        title: "Bitcoin Node Log Silence"
+        condition: B
+        data:
+          - refId: A
+            queryType: stats
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: VICTORIALOGS_DATASOURCE_UID
+            model:
+              datasource:
+                type: victoriametrics-logs-datasource
+                uid: VICTORIALOGS_DATASOURCE_UID
+              editorMode: code
+              expr: '{service="bitcoin-node"} | stats count() as log_count'
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: stats
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: "$A < 1"
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: B
+              type: math
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 10m
+        annotations:
+          summary: "Bitcoin node logs stopped"
+          description: "No logs received from bitcoin-node for 10+ minutes. Check bitcoind, local Alloy agent, log receiver, and VictoriaLogs."
+        labels:
+          alertname: bitcoin-node-log-silence
+          service: bitcoin-node
+          severity: warning
+          issue_type: local
+
+  - orgId: 1
+    name: stacks-log-signals
+    folder: Stacks Alerts
+    interval: 1m
+    rules:
+      - uid: stacks-signer-tenure-conflict
+        title: "Stacks Signer Tenure Conflict"
+        condition: B
+        data:
+          - refId: A
+            queryType: stats
+            relativeTimeRange:
+              from: 180
+              to: 0
+            datasourceUid: VICTORIALOGS_DATASOURCE_UID
+            model:
+              datasource:
+                type: victoriametrics-logs-datasource
+                uid: VICTORIALOGS_DATASOURCE_UID
+              editorMode: code
+              expr: '{service="stacks-signer", level="WARN"} _msg:~"tenure" | stats count() as tenure_warnings'
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: stats
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: "$A > 5"
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: B
+              type: math
+        noDataState: OK
+        execErrState: OK
+        for: 1m
+        annotations:
+          summary: "Tenure conflict warnings detected"
+          description: "More than 5 WARN-level signer log lines mentioning tenure were seen in 3 minutes. This can indicate miner or network consensus issues."
+        labels:
+          alertname: stacks-signer-tenure-conflict
+          service: stacks-signer
+          severity: warning
+          issue_type: network

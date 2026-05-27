@@ -8,7 +8,7 @@ Production-ready monitoring stack for **Stacks Node**, **Stacks Signer**, and **
 
 - **Grafana Dashboard** - Comprehensive view of node health, signer activity, and log analysis
 - **PoX Cycle Exporter** - Prometheus metrics for stacking cycle monitoring and restack deadline alerts
-- **Prometheus Alert Rules** - 12 pre-configured alerts including PoX restack reminders
+- **Prometheus Alert Rules** - Pre-configured node, signer, Bitcoin, and PoX alerts
 - **Grafana Alloy Pipelines** - Log collection, parsing, and field extraction for Stacks logs
 - **Multiple Deployment Options** - Docker or systemd
 - **Flexible Backend Support** - Works with Prometheus/VictoriaMetrics and Loki/VictoriaLogs
@@ -40,7 +40,9 @@ cp prometheus/alerts/stacks.rules.yml /etc/prometheus/rules/
 
 **For Grafana Alerting:**
 ```bash
-cp grafana/alerts/stacks-alerts.json /etc/grafana/provisioning/alerting/
+cp grafana/alerts/stacks-alerts.yaml /etc/grafana/provisioning/alerting/
+# Optional VictoriaLogs log-based alerts:
+# cp grafana/alerts/log-alerts-victorialogs.yaml.example /etc/grafana/provisioning/alerting/log-alerts-victorialogs.yaml
 # Restart Grafana
 ```
 
@@ -110,6 +112,9 @@ systemctl enable --now alloy
 | Panel | Description |
 |-------|-------------|
 | System Gauges | CPU, Memory, Disk, Load |
+| STX/BTC Height | Local Stacks and Bitcoin chain heights |
+| Peer Count | Total inbound and outbound Stacks peer connections |
+| Reward Cycle / To Next Cycle | Current signer reward cycle and optional PoX countdown |
 | Node Log Volume | Stacks node log activity breakdown |
 | Signer Log Volume | Signer activity (proposals, validations, accepts/rejects) |
 | Alert States | Current status of all Stacks-related alerts |
@@ -126,13 +131,17 @@ systemctl enable --now alloy
 | StacksSignerNotRegistered | Warning | Signer not registered for current cycle |
 | StacksSignerStateConflicts | Warning | State machine conflicts detected |
 | StacksSignerSlowResponse | Warning | 95th percentile response time > 60s |
-| StacksSignerLogSilence | Warning | No signer logs for 3 minutes |
 | StacksNodeLowPeers | Warning | Fewer than 10 peer connections |
-| BitcoinBlockStall | Warning | No new Bitcoin block for 30 minutes |
 | StacksRestackReminder | Warning | <720 blocks (~5 days) until prepare phase |
 | StacksRestackUrgent | Critical | <144 blocks (~1 day) until prepare phase |
 | StacksPoXExporterDown | Warning | PoX exporter unreachable for 5 minutes |
 | StacksPoXApiUnreachable | Warning | Cannot reach Stacks node /v2/pox API |
+
+Log-silence alerts require Loki/VictoriaLogs alerting or a log-derived metric; they are documented separately instead of included in Prometheus rule files.
+
+### Intentional Scope
+
+This package does not compare your local Stacks node height against the Hiro public API. Dashboards and alerts are designed around telemetry from your own node, signer, Bitcoin node, and optional local exporters. Public APIs may still be used by optional exporters when they provide data your node does not expose directly, such as PoX registration lookups.
 
 ### Log Parsing Pipeline
 
@@ -160,7 +169,8 @@ LEVEL [timestamp] [file:line] [context] message, key: value, ...
 |--------|-------------|
 | `stacks_node_stacks_tip_height` | Current Stacks chain height |
 | `stacks_node_burn_block_height` | Current Bitcoin block height |
-| `stacks_node_peer_count` | Number of connected peers |
+| `stacks_node_neighbors_outbound` | Number of outbound Stacks peers |
+| `stacks_node_neighbors_inbound` | Number of inbound Stacks peers |
 
 ### Stacks Signer Metrics (port 30001)
 
@@ -178,7 +188,7 @@ LEVEL [timestamp] [file:line] [context] message, key: value, ...
 |--------|-------------|
 | `bitcoin_blocks` | Current Bitcoin block height |
 | `bitcoin_difficulty` | Current mining difficulty |
-| `bitcoin_peers` | Number of connected peers |
+| `bitcoin_conn_in` / `bitcoin_conn_out` | Number of inbound/outbound peers |
 
 ### PoX Exporter Metrics (port 9816)
 
@@ -207,6 +217,7 @@ See [exporters/pox-exporter/README.md](exporters/pox-exporter/README.md) for ful
 | `BITCOIN_METRICS` | `localhost:9332` | Bitcoin exporter endpoint |
 | `POX_EXPORTER_METRICS` | `localhost:9816` | PoX exporter endpoint |
 | `STACKS_NODE_URL` | `http://localhost:20443` | Stacks node RPC (for PoX exporter) |
+| `POX_EXPORTER_LISTEN_ADDRESS` | `0.0.0.0` | Address for PoX exporter to bind |
 | `HOST_LABEL` | `stacks-node` | Host label for metrics/logs |
 
 ### Alloy Configuration
@@ -218,6 +229,7 @@ See [`alloy/README.md`](alloy/README.md) for detailed configuration options.
 - [Architecture](docs/ARCHITECTURE.md) - Detailed system design
 - [Metrics Reference](docs/METRICS.md) - Complete metrics documentation
 - [Label Schema](docs/LABELS.md) - Labeling conventions
+- [Log-Based Alerting](docs/LOG_ALERTING.md) - VictoriaLogs/Loki alert examples
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
 
 ## Contributing

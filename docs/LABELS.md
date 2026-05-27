@@ -10,14 +10,14 @@ This document describes the labeling conventions used throughout the Stacks moni
 |-------|----------|-------------|---------|
 | `job` | Yes | Logical grouping of targets | `stacks` |
 | `host` | Yes | Source machine identifier | `stacks-node-1` |
-| `service` | Yes | Service within the host | `stacks-node`, `stacks-signer`, `bitcoin` |
+| `service` | Yes | Service within the host | `stacks-node`, `stacks-signer`, `bitcoin-node` |
 | `instance` | Auto | Target address (added by Prometheus) | `localhost:9153` |
 
 ### Log-Specific Labels
 
 | Label | Source | Description | Example |
 |-------|--------|-------------|---------|
-| `level` | Extracted | Log severity level | `info`, `warn`, `error`, `debug` |
+| `level` | Extracted | Log severity level | `INFO`, `WARN`, `ERROR`, `DEBUG` |
 | `unit` | Journal | Systemd unit name | `stacks-node.service` |
 | `filename` | File | Source log file | `/var/log/stacks/signer.log` |
 
@@ -59,7 +59,9 @@ Standard service names:
 |-------|-------------|
 | `stacks-node` | Stacks blockchain node |
 | `stacks-signer` | Stacks signer service |
-| `bitcoin` | Bitcoin node (via exporter) |
+| `bitcoin-node` | Bitcoin node via exporter |
+| `stacks-pox` | Optional PoX cycle exporter |
+| `system` | Optional node/system exporter |
 
 ### level
 
@@ -67,11 +69,11 @@ Log levels extracted from Stacks logs:
 
 | Value | Description |
 |-------|-------------|
-| `debug` | Detailed debugging information |
-| `info` | Normal operational messages |
-| `warn` | Warning conditions |
-| `error` | Error conditions |
-| `critical` | Critical failures (rare) |
+| `DEBUG` | Detailed debugging information |
+| `INFO` | Normal operational messages |
+| `WARN` | Warning conditions |
+| `ERROR` | Error conditions |
+| `TRACE` | Very verbose tracing output |
 
 ## Alloy Relabeling
 
@@ -118,15 +120,7 @@ loki.process "extract_level" {
     }
   }
 
-  // Normalize to lowercase
-  stage.label_drop {
-    values = ["level"]
-  }
-
-  stage.template {
-    source   = "level"
-    template = "{{ ToLower .Value }}"
-  }
+  // Keep the uppercase severity emitted by Stacks services.
 }
 ```
 
@@ -146,17 +140,17 @@ up{job="stacks"}
 
 ```promql
 # Metrics from specific host
-stacks_node_stx_block_height{host="stacks-prod-1"}
+stacks_node_stacks_tip_height{host="stacks-prod-1"}
 
 # Compare across hosts
-stacks_node_stx_block_height{job="stacks"}
+stacks_node_stacks_tip_height{job="stacks"}
 ```
 
 ### By Service
 
 ```promql
 # Node metrics only
-stacks_node_peer_count{service="stacks-node"}
+stacks_node_neighbors_outbound{service="stacks-node"}
 
 # Signer metrics only
 stacks_signer_is_registered{service="stacks-signer"}
@@ -169,13 +163,13 @@ stacks_signer_is_registered{service="stacks-signer"}
 {job="stacks"}
 
 # Errors only
-{job="stacks", level="error"}
+{job="stacks", level="ERROR"}
 
 # Specific host and service
 {host="stacks-prod-1", service="stacks-signer"}
 
 # Pattern match in errors
-{job="stacks", level="error"} |= "connection refused"
+{job="stacks", level="ERROR"} |= "connection refused"
 ```
 
 ## Grafana Variables
@@ -197,7 +191,7 @@ label_values(up{job="$job", host=~"$host"}, service)
 
 ### DO
 
-1. **Use lowercase labels**: `level="info"` not `level="INFO"`
+1. **Use emitted log levels consistently**: Stacks services emit uppercase levels such as `level="INFO"`
 2. **Keep cardinality low**: Use enumerated values, not free-form text
 3. **Be consistent**: Same label names across metrics and logs
 4. **Use service granularity**: Differentiate by service, not port number
@@ -218,7 +212,7 @@ Keep total cardinality manageable:
 | `job` | 1-5 | Typically just `stacks` |
 | `host` | <100 | One per monitored server |
 | `service` | 3-5 | Fixed set of services |
-| `level` | 5 | debug/info/warn/error/critical |
+| `level` | 5 | DEBUG/INFO/WARN/ERROR/TRACE |
 
 **Target**: < 1000 unique label combinations per metric name
 

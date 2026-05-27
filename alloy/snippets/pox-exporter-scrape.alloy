@@ -16,7 +16,7 @@ prometheus.scrape "pox_exporter" {
     {
       __address__ = coalesce(env("POX_EXPORTER_METRICS"), "127.0.0.1:9816"),
       job         = "stacks",
-      service     = "pox-exporter",
+      service     = "stacks-pox",
     },
   ]
 

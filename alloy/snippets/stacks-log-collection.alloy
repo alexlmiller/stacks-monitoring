@@ -6,7 +6,7 @@
 // Configuration:
 //   - HOST_LABEL: Host label for all logs (default: stacks-node)
 //   - SIGNER_LOG_PATH: Path to signer file log (default: /var/log/stacks-signer/signer.log)
-//   - SIGNER_SAMPLING_RATE: Sampling rate for high-volume logs (default: 0.05 = 5%)
+//   - Edit signer_sampling below to tune high-volume signer log sampling.
 //
 // Output: loki.write.default.receiver
 // =============================================================================

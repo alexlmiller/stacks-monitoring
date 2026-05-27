@@ -41,11 +41,16 @@ If using Grafana's built-in alerting:
 mkdir -p /etc/grafana/provisioning/alerting
 
 # Copy alert rules
-cp alerts/stacks-alerts.json /etc/grafana/provisioning/alerting/
+cp alerts/stacks-alerts.yaml /etc/grafana/provisioning/alerting/
+
+# Optional VictoriaLogs log-based alerts
+cp alerts/log-alerts-victorialogs.yaml.example /etc/grafana/provisioning/alerting/log-alerts-victorialogs.yaml
 
 # Restart Grafana
 systemctl restart grafana-server
 ```
+
+The log-based alert example requires a VictoriaLogs datasource. Replace `VICTORIALOGS_DATASOURCE_UID` before provisioning it.
 
 ### Prometheus Alert Rules
 
@@ -60,8 +65,9 @@ See the [`../prometheus`](../prometheus) directory for Prometheus-format alert r
 | **System Gauges** | CPU, Memory, Disk, Load | Prometheus |
 | **STX Height** | Current Stacks chain height | Prometheus |
 | **BTC Height** | Current Bitcoin block height | Prometheus |
-| **Peer Count** | Number of connected peers | Prometheus |
+| **Peer Count** | Total inbound and outbound Stacks peer connections | Prometheus |
 | **Reward Cycle** | Current PoX reward cycle | Prometheus |
+| **To Next Cycle** | Blocks until next PoX prepare phase; requires optional PoX exporter | Prometheus |
 | **Alert States** | Current status of all alerts | Grafana |
 | **Alert Events** | Timeline of alert firing/resolved | Prometheus |
 | **Alert History** | Log history of alert events | Loki |
@@ -91,13 +97,17 @@ When importing, you'll be prompted to select these datasources.
 
 ### Change Job Label
 
-If your metrics use a different job label (not `stacks` or `crypto`), update these in the JSON:
+If your metrics use a different job label than `stacks`, update these in the JSON:
 
 ```json
 {
   "expr": "{job=\"your-job-label\", service=\"stacks-node\"}"
 }
 ```
+
+### Change PoX Service Label
+
+The `To Next Cycle` panel expects the PoX exporter to use `service="stacks-pox"`. If your scrape config still uses the older `service="pox-exporter"` label, update that panel query to match.
 
 ### Add More Hosts
 

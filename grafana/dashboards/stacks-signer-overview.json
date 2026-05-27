@@ -453,7 +453,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Number of connected peers",
+      "description": "Total inbound and outbound Stacks peer connections",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -488,7 +488,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "editorMode": "code",
-          "expr": "stacks_node_peer_count{host=\"$host\"}",
+          "expr": "stacks_node_neighbors_inbound{host=\"$host\"} + stacks_node_neighbors_outbound{host=\"$host\"}",
           "legendFormat": "Peers",
           "range": true,
           "refId": "A"
@@ -516,7 +516,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 3, "x": 21, "y": 1 },
+      "gridPos": { "h": 2, "w": 3, "x": 21, "y": 1 },
       "id": 705,
       "options": {
         "colorMode": "value",
@@ -540,6 +540,63 @@
         }
       ],
       "title": "Reward Cycle",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Blocks until the next PoX prepare phase begins. Requires the optional PoX exporter.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": { "text": "N/A" }
+              },
+              "type": "special"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": 0 },
+              { "color": "yellow", "value": 144 },
+              { "color": "green", "value": 720 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 2, "w": 3, "x": 21, "y": 3 },
+      "id": 706,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "editorMode": "code",
+          "expr": "last_over_time(stacks_pox_blocks_until_prepare_phase{service=\"stacks-pox\", host=\"$host\"}[5m])",
+          "instant": true,
+          "legendFormat": "Blocks",
+          "refId": "A"
+        }
+      ],
+      "title": "To Next Cycle",
       "type": "stat"
     },
     {
@@ -687,7 +744,7 @@
       "gridPos": { "h": 8, "w": 8, "x": 0, "y": 11 },
       "id": 601,
       "options": {
-        "alertInstanceLabelFilter": "{job=~\"stacks|crypto\"}",
+        "alertInstanceLabelFilter": "{job=\"stacks\"}",
         "alertName": "",
         "dashboardAlerts": false,
         "groupBy": [],
@@ -700,8 +757,7 @@
           "firing": true,
           "noData": true,
           "normal": true,
-          "pending": true,
-          "recovering": true
+          "pending": true
         },
         "viewMode": "list"
       },
@@ -794,7 +850,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "{service=\"grafana-alerts\", job=~\"stacks|crypto\"}",
+          "expr": "{service=\"grafana-alerts\", job=\"stacks\"}",
           "refId": "A"
         }
       ],
@@ -1105,7 +1161,7 @@
         "name": "host",
         "options": [],
         "query": {
-          "query": "label_values({job=~\"stacks|crypto\"}, host)",
+          "query": "label_values({job=\"stacks\"}, host)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,

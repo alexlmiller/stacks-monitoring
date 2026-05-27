@@ -6,11 +6,11 @@ groups:
       # =========================================================================
 
       - alert: StacksPoXExporterDown
-        expr: up{service="pox-exporter"} == 0
+        expr: up{service=~"stacks-pox|pox-exporter"} == 0
         for: 5m
         labels:
           severity: warning
-          service: pox-exporter
+          service: stacks-pox
         annotations:
           summary: "PoX cycle exporter is down"
           description: "Cannot scrape PoX metrics from {{ $labels.host }} - stacking deadline alerts unavailable."
@@ -21,7 +21,7 @@ groups:
         for: 5m
         labels:
           severity: warning
-          service: pox-exporter
+          service: stacks-pox
         annotations:
           summary: "Cannot reach Stacks node PoX API"
           description: "The PoX exporter on {{ $labels.host }} cannot reach the Stacks node /v2/pox endpoint."

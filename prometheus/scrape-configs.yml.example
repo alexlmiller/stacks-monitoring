@@ -7,7 +7,7 @@ scrape_configs:
   # Stacks Node Metrics
   # =========================================================================
   # Exposes: stacks_node_stacks_tip_height, stacks_node_burn_block_height,
-  #          stacks_node_peer_count, and more
+  #          stacks_node_neighbors_outbound, and more
   - job_name: 'stacks-node'
     scrape_interval: 10s
     static_configs:
@@ -35,7 +35,7 @@ scrape_configs:
   # Bitcoin Exporter Metrics
   # =========================================================================
   # Requires bitcoin-exporter (github.com/jvstein/bitcoin-exporter)
-  # Exposes: bitcoin_blocks, bitcoin_difficulty, bitcoin_peers, etc.
+  # Exposes: bitcoin_blocks, bitcoin_difficulty, bitcoin_conn_in/out, etc.
   - job_name: 'bitcoin-exporter'
     scrape_interval: 30s
     static_configs:

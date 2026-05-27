@@ -144,7 +144,7 @@ Common issues and solutions for the Stacks monitoring stack.
 
 **Symptoms:**
 - All logs show without `level` label
-- Can't filter by `level="error"`
+- Can't filter by `level="ERROR"`
 
 **Solutions:**
 

@@ -31,8 +31,8 @@ systemctl reload prometheus
 | **StacksSignerStateConflicts** | Warning | State machine conflicts detected |
 | **StacksSignerSlowResponse** | Warning | 95th percentile latency > 60s |
 | **StacksNodeLowPeers** | Warning | Peer count < 10 |
-| **BitcoinBlockStall** | Warning | No new block for 30 minutes |
-| **StacksSignerLogSilence** | Warning | No logs for 3 minutes |
+
+Log-silence alerts require a log backend such as Loki or VictoriaLogs, or a log-derived metric. They are intentionally not included in these Prometheus-only rule files.
 
 ## Scrape Configuration
 

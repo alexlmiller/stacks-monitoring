@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Migration Notes
 - If your dashboard data uses a non-default job label, update dashboard queries and variables from `job="stacks"` to your label. Older examples also matched `job="crypto"`; 1.2.0 defaults to `stacks` only.
+- If your PoX exporter still emits `service="pox-exporter"`, update the dashboard `To Next Cycle` panel query or rescrape it as `service="stacks-pox"`.
 - If you previously set `STACKERDB_SAMPLING_RATE`, edit the `stage.sampling.rate` literal in your Alloy config instead.
 
 ## [1.1.0] - 2025-12-25

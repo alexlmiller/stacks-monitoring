@@ -8,6 +8,8 @@ Environment Variables:
   STACKS_NODE_URL     - Stacks node RPC endpoint (default: http://localhost:20443)
                         Used for /v2/pox endpoint to get cycle info
   POX_EXPORTER_PORT   - Port to expose metrics on (default: 9816)
+  POX_EXPORTER_LISTEN_ADDRESS
+                      - Address to bind the exporter to (default: 0.0.0.0)
   STACKER_ADDRESSES   - Comma-separated list of STX addresses to monitor for
                         registration status (optional, leave empty to disable)
   STACKER_API_URL     - API endpoint for registration checking (default: https://api.hiro.so)
@@ -40,6 +42,7 @@ from urllib.error import URLError, HTTPError
 # Configuration from environment variables
 STACKS_NODE_URL = os.environ.get("STACKS_NODE_URL", "http://localhost:20443")
 LISTEN_PORT = int(os.environ.get("POX_EXPORTER_PORT", "9816"))
+LISTEN_ADDRESS = os.environ.get("POX_EXPORTER_LISTEN_ADDRESS", "0.0.0.0")
 
 # Parse stacker addresses from comma-separated env var
 _stacker_env = os.environ.get("STACKER_ADDRESSES", "").strip()
@@ -238,8 +241,8 @@ class MetricsHandler(BaseHTTPRequestHandler):
 
 
 def main():
-    server = HTTPServer(("0.0.0.0", LISTEN_PORT), MetricsHandler)
-    print(f"Stacks PoX Exporter listening on port {LISTEN_PORT}")
+    server = HTTPServer((LISTEN_ADDRESS, LISTEN_PORT), MetricsHandler)
+    print(f"Stacks PoX Exporter listening on {LISTEN_ADDRESS}:{LISTEN_PORT}")
     print(f"Fetching PoX info from {STACKS_NODE_URL}/v2/pox")
     if STACKER_ADDRESSES:
         print(f"Monitoring {len(STACKER_ADDRESSES)} stacker address(es) for registration status")

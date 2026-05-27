@@ -1,6 +1,6 @@
 [Unit]
 Description=Stacks PoX Cycle Exporter
-Documentation=https://github.com/your-org/stacks-monitoring
+Documentation=https://github.com/alexlmiller/stacks-monitoring
 After=network.target
 
 [Service]

@@ -10,7 +10,7 @@ Exposed on port `9153` by default.
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `stacks_node_stx_block_height` | Gauge | Current Stacks block height |
+| `stacks_node_stacks_tip_height` | Gauge | Current Stacks block height |
 | `stacks_node_burn_block_height` | Gauge | Current Bitcoin block height (burn chain) |
 | `stacks_node_burn_block_timestamp` | Gauge | Unix timestamp of last Bitcoin block |
 
@@ -18,9 +18,8 @@ Exposed on port `9153` by default.
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `stacks_node_peer_count` | Gauge | Number of connected peers |
-| `stacks_node_inbound_peers` | Gauge | Inbound peer connections |
-| `stacks_node_outbound_peers` | Gauge | Outbound peer connections |
+| `stacks_node_neighbors_outbound` | Gauge | Outbound Stacks peer connections |
+| `stacks_node_neighbors_inbound` | Gauge | Inbound Stacks peer connections |
 
 ### Mempool
 
@@ -46,7 +45,7 @@ Exposed on port `30001` by default.
 | Metric | Type | Description |
 |--------|------|-------------|
 | `stacks_signer_is_registered` | Gauge | 1 if signer is registered, 0 otherwise |
-| `stacks_signer_reward_cycle` | Gauge | Current reward cycle number |
+| `stacks_signer_current_reward_cycle` | Gauge | Current reward cycle number |
 
 ### Block Responses
 
@@ -104,7 +103,8 @@ Exposed on port `9332` by default (bitcoin_exporter).
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `bitcoin_peers` | Gauge | Connected peers |
+| `bitcoin_conn_in` | Gauge | Inbound Bitcoin peer connections |
+| `bitcoin_conn_out` | Gauge | Outbound Bitcoin peer connections |
 | `bitcoin_warnings` | Gauge | Network warnings active |
 
 ### Verification
@@ -148,6 +148,10 @@ Exposed on port `9816` by default.
 
 The `stacks_pox_registered_next_cycle` metric requires `STACKER_ADDRESSES` to be configured. It checks if any of the specified addresses have STX locked beyond the next cycle's start block.
 
+## Intentional Scope
+
+This package intentionally does not include local-vs-Hiro API block-height comparison metrics such as `stacks_api_latest_block_height` or `stacks_local_*`. Dashboards and alerts are based on local Stacks node, signer, Bitcoin, and optional local exporter metrics. Optional exporters may call public APIs only when the node does not expose that data directly, such as PoX registration lookups.
+
 ## Alloy Self-Metrics
 
 Exposed on port `12345` at `/metrics`.
@@ -173,10 +177,10 @@ Exposed on port `12345` at `/metrics`.
 
 ```promql
 # Current block height
-stacks_node_stx_block_height{job="stacks"}
+stacks_node_stacks_tip_height{job="stacks"}
 
 # Blocks per hour
-rate(stacks_node_stx_block_height[1h]) * 3600
+rate(stacks_node_stacks_tip_height[1h]) * 3600
 
 # Signer registration status
 stacks_signer_is_registered{job="stacks"}
@@ -200,13 +204,29 @@ histogram_quantile(0.95, rate(stacks_signer_block_response_latencies_histogram_b
 
 ```promql
 # Peer count
-stacks_node_peer_count{job="stacks"}
+stacks_node_neighbors_outbound{job="stacks"}
+
+# Total Stacks peer connections
+stacks_node_neighbors_inbound{job="stacks"} + stacks_node_neighbors_outbound{job="stacks"}
+
+# Bitcoin peer connections
+bitcoin_conn_in{job="stacks"} + bitcoin_conn_out{job="stacks"}
 
 # Bitcoin sync status
-bitcoin_verification_progress{job="bitcoin"}
+bitcoin_verification_progress{job="stacks", service="bitcoin-node"}
 
 # Time since last Bitcoin block
 time() - stacks_node_burn_block_timestamp
+```
+
+### PoX Cycle
+
+```promql
+# Blocks until the next prepare phase starts
+last_over_time(stacks_pox_blocks_until_prepare_phase{service="stacks-pox"}[5m])
+
+# Registration status for the next cycle
+stacks_pox_registered_next_cycle{service="stacks-pox"}
 ```
 
 ### Recording Rules

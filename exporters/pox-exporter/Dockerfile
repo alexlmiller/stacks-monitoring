@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 LABEL org.opencontainers.image.title="Stacks PoX Exporter"
 LABEL org.opencontainers.image.description="Prometheus exporter for Stacks PoX cycle monitoring"
-LABEL org.opencontainers.image.source="https://github.com/your-org/stacks-monitoring"
+LABEL org.opencontainers.image.source="https://github.com/alexlmiller/stacks-monitoring"
 
 WORKDIR /app
 

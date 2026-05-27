@@ -9,7 +9,7 @@ This directory contains the Grafana dashboard and alert configurations for Stack
 1. Open Grafana
 2. Go to **Dashboards** > **Import**
 3. Upload `dashboards/stacks-signer-overview.json`
-4. Select your Prometheus and Loki/VictoriaLogs datasources
+4. Select your Prometheus/VictoriaMetrics datasource and a Loki-compatible logs datasource
 5. Click **Import**
 
 ### Import via Provisioning
@@ -41,11 +41,16 @@ If using Grafana's built-in alerting:
 mkdir -p /etc/grafana/provisioning/alerting
 
 # Copy alert rules
-cp alerts/stacks-alerts.json /etc/grafana/provisioning/alerting/
+cp alerts/stacks-alerts.yaml /etc/grafana/provisioning/alerting/
+
+# Optional VictoriaLogs log-based alerts
+cp alerts/log-alerts-victorialogs.yaml.example /etc/grafana/provisioning/alerting/log-alerts-victorialogs.yaml
 
 # Restart Grafana
 systemctl restart grafana-server
 ```
+
+The log-based alert example requires a VictoriaLogs datasource. Replace `VICTORIALOGS_DATASOURCE_UID` before provisioning it.
 
 ### Prometheus Alert Rules
 
@@ -60,8 +65,9 @@ See the [`../prometheus`](../prometheus) directory for Prometheus-format alert r
 | **System Gauges** | CPU, Memory, Disk, Load | Prometheus |
 | **STX Height** | Current Stacks chain height | Prometheus |
 | **BTC Height** | Current Bitcoin block height | Prometheus |
-| **Peer Count** | Number of connected peers | Prometheus |
+| **Peer Count** | Total inbound and outbound Stacks peer connections | Prometheus |
 | **Reward Cycle** | Current PoX reward cycle | Prometheus |
+| **To Next Cycle** | Blocks until next PoX prepare phase; requires optional PoX exporter | Prometheus |
 | **Alert States** | Current status of all alerts | Grafana |
 | **Alert Events** | Timeline of alert firing/resolved | Prometheus |
 | **Alert History** | Log history of alert events | Loki |
@@ -83,21 +89,27 @@ The dashboard uses these template variables:
 The dashboard requires two datasources:
 
 1. **Prometheus/VictoriaMetrics** - For metrics (system gauges, heights, alerts)
-2. **Loki/VictoriaLogs** - For logs (log volumes, log panels)
+2. **Loki-compatible logs datasource** - For logs (log volumes, log panels). VictoriaLogs can back these panels when it is exposed through a Loki-compatible query endpoint and configured in Grafana as a Loki datasource.
 
 When importing, you'll be prompted to select these datasources.
+
+The optional VictoriaLogs alert provisioning example uses the VictoriaLogs datasource plugin directly; the dashboard log panels use Grafana's Loki datasource type.
 
 ## Customization
 
 ### Change Job Label
 
-If your metrics use a different job label (not `stacks` or `crypto`), update these in the JSON:
+If your metrics use a different job label than `stacks`, update these in the JSON:
 
 ```json
 {
   "expr": "{job=\"your-job-label\", service=\"stacks-node\"}"
 }
 ```
+
+### Change PoX Service Label
+
+The `To Next Cycle` panel expects the PoX exporter to use `service="stacks-pox"`. If your scrape config still uses the older `service="pox-exporter"` label, update that panel query to match.
 
 ### Add More Hosts
 

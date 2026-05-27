@@ -152,7 +152,7 @@ groups:
               to: 0
             datasourceUid: PROMETHEUS_DATASOURCE_UID
             model:
-              expr: 'stacks_node_peer_count'
+              expr: 'stacks_node_neighbors_outbound'
               instant: true
               refId: A
           - refId: B
@@ -574,7 +574,7 @@ groups:
               to: 0
             datasourceUid: PROMETHEUS_DATASOURCE_UID
             model:
-              expr: 'up{service="pox-exporter"}'
+              expr: 'up{service=~"stacks-pox|pox-exporter"}'
               instant: true
               refId: A
           - refId: B
@@ -598,7 +598,7 @@ groups:
           description: "Cannot scrape PoX metrics - stacking deadline alerts unavailable."
         labels:
           alertname: stacks-pox-exporter-down
-          service: pox-exporter
+          service: stacks-pox
           severity: warning
           issue_type: local
 

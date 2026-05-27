@@ -54,6 +54,7 @@ python3 pox-exporter.py
 |---------------------|---------|-------------|
 | `STACKS_NODE_URL` | `http://localhost:20443` | Stacks node RPC endpoint (for `/v2/pox`) |
 | `POX_EXPORTER_PORT` | `9816` | Port to expose metrics on |
+| `POX_EXPORTER_LISTEN_ADDRESS` | `0.0.0.0` | Address to bind the exporter to |
 | `STACKER_ADDRESSES` | (empty) | Comma-separated STX addresses to monitor for registration |
 | `STACKER_API_URL` | `https://api.hiro.so` | API for registration checking (only used when STACKER_ADDRESSES is set) |
 

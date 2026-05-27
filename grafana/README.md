@@ -9,7 +9,7 @@ This directory contains the Grafana dashboard and alert configurations for Stack
 1. Open Grafana
 2. Go to **Dashboards** > **Import**
 3. Upload `dashboards/stacks-signer-overview.json`
-4. Select your Prometheus and Loki/VictoriaLogs datasources
+4. Select your Prometheus/VictoriaMetrics datasource and a Loki-compatible logs datasource
 5. Click **Import**
 
 ### Import via Provisioning
@@ -89,9 +89,11 @@ The dashboard uses these template variables:
 The dashboard requires two datasources:
 
 1. **Prometheus/VictoriaMetrics** - For metrics (system gauges, heights, alerts)
-2. **Loki/VictoriaLogs** - For logs (log volumes, log panels)
+2. **Loki-compatible logs datasource** - For logs (log volumes, log panels). VictoriaLogs can back these panels when it is exposed through a Loki-compatible query endpoint and configured in Grafana as a Loki datasource.
 
 When importing, you'll be prompted to select these datasources.
+
+The optional VictoriaLogs alert provisioning example uses the VictoriaLogs datasource plugin directly; the dashboard log panels use Grafana's Loki datasource type.
 
 ## Customization
 

@@ -27,7 +27,7 @@ Production-ready monitoring stack for **Stacks Node**, **Stacks Signer**, and **
 
 1. Download [`grafana/dashboards/stacks-signer-overview.json`](grafana/dashboards/stacks-signer-overview.json)
 2. In Grafana: **Dashboards** > **Import** > Upload JSON
-3. Select your Prometheus and Loki/VictoriaLogs datasources
+3. Select your Prometheus/VictoriaMetrics datasource and a Loki-compatible logs datasource. If you use VictoriaLogs for dashboard log panels, expose it through its Loki-compatible query endpoint and select it as a Loki datasource.
 4. Click **Import**
 
 ### 2. Add Alert Rules
